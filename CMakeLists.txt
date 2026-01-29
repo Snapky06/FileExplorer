@@ -11,6 +11,8 @@ qt_add_executable(FileExplorer
     mainwindow.cpp
     mainwindow.h
     mainwindow.ui
+
+
 )
 
 target_link_libraries(FileExplorer
