@@ -11,6 +11,7 @@ qt_add_executable(FileExplorer
     mainwindow.cpp
     mainwindow.h
     mainwindow.ui
+    originfile.h
 
 
 )
