@@ -1,30 +1,33 @@
 #include "directory.h"
-#include "node.h"
 
-Directory::Directory(QString name, OriginFile* parent)
-    : OriginFile(name, true, parent) {
+Directory::Directory(QString name, OriginFile* parent) : OriginFile(name, true, parent) {
 }
 
 Directory::~Directory() {
 }
 
-long Directory::getSize() const {
-    long totalSize = 0;
-    // Note: In your logic, the 'Node' associated with this directory
-    // will be used to iterate through the firstChild and its siblings.
-    // This allows summing only the files within this specific directory.
-    return totalSize;
+long Directory::getSize() {
+    long total = 0;
+    int totalHijos = children.size();
+    for (int i = 0; i < totalHijos; i++) {
+        total = total + children[i]->getSize();
+    }
+    return total;
 }
 
-int Directory::getFileCount() const {
-    int count = 0;
-    // Logic to iterate siblings starting from firstChild to count elements.
-    return count;
+int Directory::getFileCount() {
+    int contador = 0;
+    int totalHijos = children.size();
+    for (int i = 0; i < totalHijos; i++) {
+        if (children[i]->checkIsDirectory() == false) {
+            contador = contador + 1;
+        }
+    }
+    return contador;
 }
 
-void Directory::writeBinary(QDataStream &out) const {
+void Directory::writeBinary(QDataStream &out) {
     OriginFile::writeBinary(out);
-    // Persist directory-specific metadata
 }
 
 void Directory::readBinary(QDataStream &in) {

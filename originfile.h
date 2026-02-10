@@ -4,29 +4,47 @@
 #include <QString>
 #include <QDateTime>
 #include <QDataStream>
+#include <vector>
 
 class OriginFile {
 protected:
     QString name;
-    long size;
     QDateTime created;
     QDateTime modified;
     bool isDirectory;
+    bool isFavorite;
+    bool inRecycleBin;
+    QString originalPath;
+
     OriginFile* parent;
+    std::vector<OriginFile*> children;
 
 public:
     OriginFile(QString name, bool isDirectory, OriginFile* parent = nullptr);
     virtual ~OriginFile();
 
-    QString getName() const;
-    void setName(const QString &newName);
-    bool checkIsDirectory() const;
-    OriginFile* getParent() const;
+    QString getName();
+    void setName(QString newName);
+    bool checkIsDirectory();
 
-    virtual void writeBinary(QDataStream &out) const;
+    OriginFile* getParent();
+    void setParent(OriginFile* newParent);
+
+    void addChild(OriginFile* child);
+    void removeChild(OriginFile* child);
+
+    int getChildCount();
+    OriginFile* getChild(int index);
+
+    bool getIsFavorite();
+    void setIsFavorite(bool favorite);
+
+    bool getInRecycleBin();
+    void setInRecycleBin(bool bin);
+
+    virtual long getSize() = 0;
+    virtual void writeBinary(QDataStream &out);
     virtual void readBinary(QDataStream &in);
-
-    virtual long getSize() const = 0;
 };
 
-#endif // ORIGINFILE_H
+#endif

@@ -1,26 +1,25 @@
 #include "file.h"
 
-File::File(QString name, OriginFile* parent)
-    : OriginFile(name, false, parent) {
+File::File(QString name, OriginFile* parent) : OriginFile(name, false, parent) {
 }
 
 File::~File() {
 }
 
-QString File::getContent() const {
+QString File::getContent() {
     return content;
 }
 
-void File::setContent(const QString &newContent) {
+void File::setContent(QString newContent) {
     content = newContent;
-    this->modified = QDateTime::currentDateTime();
+    modified = QDateTime::currentDateTime();
 }
 
-long File::getSize() const {
+long File::getSize() {
     return content.toUtf8().size();
 }
 
-void File::writeBinary(QDataStream &out) const {
+void File::writeBinary(QDataStream &out) {
     OriginFile::writeBinary(out);
     out << content;
 }

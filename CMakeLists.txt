@@ -12,7 +12,7 @@ qt_add_executable(FileExplorer
     mainwindow.h
     mainwindow.ui
 
-    node.h node.cpp
+
     notepad.ui
     notepad.h notepad.cpp
     originfile.h originfile.cpp
@@ -20,6 +20,7 @@ qt_add_executable(FileExplorer
     file.h file.cpp
     historynode.h historynode.cpp
     navigationhistory.h navigationhistory.cpp
+    minint.ui
 
 
 

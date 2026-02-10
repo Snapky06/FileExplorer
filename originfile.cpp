@@ -6,32 +6,59 @@ OriginFile::OriginFile(QString name, bool isDirectory, OriginFile* parent) {
     this->parent = parent;
     this->created = QDateTime::currentDateTime();
     this->modified = this->created;
-    this->size = 0;
+    this->isFavorite = false;
+    this->inRecycleBin = false;
 }
 
-OriginFile::~OriginFile() {}
-
-QString OriginFile::getName() const { return name; }
-
-void OriginFile::setName(const QString &newName) {
-    name = newName;
-    modified = QDateTime::currentDateTime();
+OriginFile::~OriginFile() {
+    for (int i = 0; i < children.size(); i++) {
+        delete children[i];
+    }
 }
 
-bool OriginFile::checkIsDirectory() const { return isDirectory; }
+QString OriginFile::getName() { return name; }
+void OriginFile::setName(QString newName) { name = newName; modified = QDateTime::currentDateTime(); }
+bool OriginFile::checkIsDirectory() { return isDirectory; }
+OriginFile* OriginFile::getParent() { return parent; }
+void OriginFile::setParent(OriginFile* newParent) { parent = newParent; }
 
-OriginFile* OriginFile::getParent() const { return parent; }
+void OriginFile::addChild(OriginFile* child) {
+    if (child == nullptr) return;
+    for (int i = 0; i < children.size(); i++) {
+        if (children[i]->name == child->name) return;
+    }
+    child->setParent(this);
+    children.push_back(child);
+}
 
-void OriginFile::writeBinary(QDataStream &out) const {
-    out << name;
-    out << isDirectory;
-    out << created;
-    out << modified;
+void OriginFile::removeChild(OriginFile* child) {
+    int pos = -1;
+    for (int i = 0; i < children.size(); i++) {
+        if (children[i] == child) {
+            pos = i;
+            break;
+        }
+    }
+    if (pos != -1) {
+        children.erase(children.begin() + pos);
+    }
+}
+
+int OriginFile::getChildCount() { return children.size(); }
+OriginFile* OriginFile::getChild(int index) { return children[index]; }
+bool OriginFile::getIsFavorite() { return isFavorite; }
+void OriginFile::setIsFavorite(bool favorite) { isFavorite = favorite; }
+bool OriginFile::getInRecycleBin() { return inRecycleBin; }
+void OriginFile::setInRecycleBin(bool bin) { inRecycleBin = bin; }
+
+void OriginFile::writeBinary(QDataStream &out) {
+    out << name << created << modified << isDirectory << isFavorite << inRecycleBin << originalPath;
+    out << (int)children.size();
+    for (int i = 0; i < children.size(); i++) {
+        children[i]->writeBinary(out);
+    }
 }
 
 void OriginFile::readBinary(QDataStream &in) {
-    in >> name;
-    in >> isDirectory;
-    in >> created;
-    in >> modified;
+    in >> name >> created >> modified >> isDirectory >> isFavorite >> inRecycleBin >> originalPath;
 }
