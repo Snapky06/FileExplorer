@@ -3,10 +3,10 @@
 
 #include <QString>
 #include <QDateTime>
-class OriginFile
-{
-protected:
+#include <QDataStream>
 
+class OriginFile {
+protected:
     QString name;
     long size;
     QDateTime created;
@@ -16,16 +16,17 @@ protected:
 
 public:
     OriginFile(QString name, bool isDirectory, OriginFile* parent = nullptr);
-    virtual ~OriginFile() = default;
+    virtual ~OriginFile();
 
-    QString getName() const {return name;}
-    void setName(const QString newName) {name = newName;}
+    QString getName() const;
+    void setName(const QString &newName);
+    bool checkIsDirectory() const;
+    OriginFile* getParent() const;
+
+    virtual void writeBinary(QDataStream &out) const;
+    virtual void readBinary(QDataStream &in);
 
     virtual long getSize() const = 0;
-    QDateTime getCreationDate() const {return created;}
-    QDateTime getModificationDate() const {return modified;}
-    bool checkIsDirectory() const {return isDirectory;}
-
 };
 
 #endif // ORIGINFILE_H

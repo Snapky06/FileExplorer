@@ -11,8 +11,15 @@ qt_add_executable(FileExplorer
     mainwindow.cpp
     mainwindow.h
     mainwindow.ui
-    originfile.h
+
     node.h node.cpp
+    notepad.ui
+    notepad.h notepad.cpp
+    originfile.h originfile.cpp
+    directory.h directory.cpp
+    file.h file.cpp
+    historynode.h historynode.cpp
+    navigationhistory.h navigationhistory.cpp
 
 
 
