@@ -71,12 +71,22 @@
        <number>1</number>
       </property>
       <item>
-       <widget class="QPushButton" name="newfileb">
+       <widget class="QPushButton" name="directoryb">
         <property name="text">
          <string/>
         </property>
         <property name="icon">
          <iconset theme="QIcon::ThemeIcon::FolderNew"/>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="fileb">
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset theme="QIcon::ThemeIcon::FolderOpen"/>
         </property>
        </widget>
       </item>
@@ -99,6 +109,16 @@
           <width>16</width>
           <height>16</height>
          </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="deleteb">
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset theme="QIcon::ThemeIcon::EditDelete"/>
         </property>
        </widget>
       </item>
@@ -154,16 +174,6 @@
      </widget>
     </item>
    </layout>
-  </widget>
-  <widget class="QMenuBar" name="menubar">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>800</width>
-     <height>21</height>
-    </rect>
-   </property>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
  </widget>

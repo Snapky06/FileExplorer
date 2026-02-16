@@ -42,9 +42,13 @@ public:
     bool getInRecycleBin();
     void setInRecycleBin(bool bin);
 
+    QString getOriginalPath();
+    void setOriginalPath(QString path);
+
     virtual long getSize() = 0;
+
     virtual void writeBinary(QDataStream &out);
     virtual void readBinary(QDataStream &in);
 };
 
-#endif
+#endif // ORIGIN_FILE

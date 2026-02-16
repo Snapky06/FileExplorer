@@ -7,23 +7,25 @@ NavigationHistory::NavigationHistory() {
 }
 
 NavigationHistory::~NavigationHistory() {
-    HistoryNode* tmp = head;
-    while (tmp!=nullptr) {
-        HistoryNode* next = tmp->next;
-        delete tmp;
-        tmp = next;
+    HistoryNode* temp = head;
+    while (temp != nullptr) {
+        HistoryNode* nextNode = temp->next;
+        delete temp;
+        temp = nextNode;
     }
 }
 
-void NavigationHistory::addVisit(OriginFile* dir) {
-    if (current && current->directory == dir) return;
+void NavigationHistory::addVisit(QString path) {
+    if (current != nullptr && current->path == path) return;
 
-    clearForwardHistory();
+    clearForward();
 
-    HistoryNode* newNode = new HistoryNode(dir);
+    HistoryNode* newNode = new HistoryNode(path);
 
-    if (!head) {
-        head = tail = current = newNode;
+    if (head == nullptr) {
+        head = newNode;
+        tail = newNode;
+        current = newNode;
     } else {
         tail->next = newNode;
         newNode->prev = tail;
@@ -32,40 +34,45 @@ void NavigationHistory::addVisit(OriginFile* dir) {
     }
 }
 
-OriginFile* NavigationHistory::goBack() {
+QString NavigationHistory::goBack() {
     if (canGoBack()) {
         current = current->prev;
-        return current->directory;
+        return current->path;
     }
-    return nullptr;
+    return "";
 }
 
-OriginFile* NavigationHistory::goForward() {
+QString NavigationHistory::goForward() {
     if (canGoForward()) {
         current = current->next;
-        return current->directory;
+        return current->path;
     }
-    return nullptr;
+    return "";
 }
 
-bool NavigationHistory::canGoBack() const {
-    return current && current->prev;
+QString NavigationHistory::getCurrent() {
+    if (current) return current->path;
+    return "";
 }
 
-bool NavigationHistory::canGoForward() const {
-    return current && current->next;
+bool NavigationHistory::canGoBack() {
+    return current != nullptr && current->prev != nullptr;
 }
 
-void NavigationHistory::clearForwardHistory() {
-    if (!current) return;
+bool NavigationHistory::canGoForward() {
+    return current != nullptr && current->next != nullptr;
+}
 
-    HistoryNode* toDelete = current->next;
+void NavigationHistory::clearForward() {
+    if (current == nullptr) return;
+
+    HistoryNode* temp = current->next;
     current->next = nullptr;
     tail = current;
 
-    while (toDelete) {
-        HistoryNode* next = toDelete->next;
-        delete toDelete;
-        toDelete = next;
+    while (temp != nullptr) {
+        HistoryNode* nextNode = temp->next;
+        delete temp;
+        temp = nextNode;
     }
 }

@@ -8,22 +8,25 @@ Directory::~Directory() {
 
 long Directory::getSize() {
     long total = 0;
-    int totalHijos = children.size();
-    for (int i = 0; i < totalHijos; i++) {
+    int count = (int)children.size();
+
+    for (int i = 0; i < count; i++) {
         total = total + children[i]->getSize();
     }
+
     return total;
 }
 
 int Directory::getFileCount() {
-    int contador = 0;
-    int totalHijos = children.size();
-    for (int i = 0; i < totalHijos; i++) {
+    int fileCount = 0;
+    int count = (int)children.size();
+
+    for (int i = 0; i < count; i++) {
         if (children[i]->checkIsDirectory() == false) {
-            contador = contador + 1;
+            fileCount = fileCount + 1;
         }
     }
-    return contador;
+    return fileCount;
 }
 
 void Directory::writeBinary(QDataStream &out) {

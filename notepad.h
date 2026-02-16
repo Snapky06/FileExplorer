@@ -3,22 +3,22 @@
 
 #include <QMainWindow>
 
-QT_BEGIN_NAMESPACE
 namespace Ui { class Notepad; }
-QT_END_NAMESPACE
 
-class Notepad : public QMainWindow
-{
+class Notepad : public QMainWindow {
     Q_OBJECT
 
 public:
-    Notepad(QWidget *parent = nullptr);
+    explicit Notepad(QString filePath, QWidget *parent = nullptr);
     ~Notepad();
 
 private slots:
-    void on_saveB_clicked();
+    void on_saveButton_clicked();
+    void on_closeButton_clicked();
 
 private:
     Ui::Notepad *ui;
+    QString filePath;
+    void loadFile();
 };
 #endif // NOTEPAD_H
