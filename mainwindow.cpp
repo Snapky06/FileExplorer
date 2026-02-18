@@ -16,6 +16,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->setupUi(this);
     setupModels();
 
+    currentDirectory = (Directory*)root;
+    history.addVisit(currentDirectory);
+    refreshUI();
+
     root = nullptr;
     recycleBin = nullptr;
     clipboard = nullptr;
@@ -59,6 +63,28 @@ void MainWindow::setupModels() {
     ui->treeView->setModel(treeModel);
 }
 
+void MainWindow::triggerRename(OriginFile* item) {
+    if (!item) return;
+
+    bool ok;
+    QString oldName = item->getName();
+    QString newName = QInputDialog::getText(this, "Rename", "New Name:", QLineEdit::Normal, oldName, &ok);
+
+    if (ok && !newName.isEmpty() && newName != oldName) {
+        if (!item->getIsDirectory() && !newName.endsWith(".txt")) {
+            newName += ".txt";
+        }
+
+        if (checkDuplicateName(newName)) {
+            QMessageBox::warning(this, "Error", "A file or folder with this name already exists.");
+        } else {
+            item->setName(newName);
+            refreshUI();
+            saveSystem();
+        }
+    }
+}
+
 void MainWindow::customMenu(const QPoint &pos) {
     QModelIndex index = ui->listView->indexAt(pos);
     if (!index.isValid()) return;
@@ -68,12 +94,10 @@ void MainWindow::customMenu(const QPoint &pos) {
 
     QMenu menu(this);
     QAction* openAct = menu.addAction("Open");
-
     QAction* editAct = nullptr;
     if (!item->getIsDirectory()) {
         editAct = menu.addAction("Edit");
     }
-
     QAction* renameAct = menu.addAction("Rename");
 
     connect(openAct, &QAction::triggered, this, [this, index]() {
@@ -88,19 +112,7 @@ void MainWindow::customMenu(const QPoint &pos) {
     }
 
     connect(renameAct, &QAction::triggered, this, [this, item]() {
-        bool ok;
-        QString oldName = item->getName();
-        QString newName = QInputDialog::getText(this, "Rename", "New Name:", QLineEdit::Normal, oldName, &ok);
-
-        if (ok && !newName.isEmpty() && newName != oldName) {
-            if (checkDuplicateName(newName)) {
-                QMessageBox::warning(this, "Error", "A file or folder with this name already exists.");
-            } else {
-                item->setName(newName);
-                refreshUI();
-                saveSystem();
-            }
-        }
+        triggerRename(item);
     });
 
     menu.exec(ui->listView->mapToGlobal(pos));
@@ -161,10 +173,12 @@ QString MainWindow::calculateFullPath(OriginFile* node) {
 
 void MainWindow::on_listView_doubleClicked(const QModelIndex &index) {
     OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
-
-    if (item) {
+    if (item != nullptr) {
         if (item->getIsDirectory()) {
             currentDirectory = (Directory*)item;
+
+            history.addVisit(currentDirectory);
+
             refreshUI();
         } else {
             Notepad* editor = new Notepad((File*)item, this);
@@ -303,9 +317,19 @@ void MainWindow::on_pasteb_clicked() {
 }
 
 void MainWindow::on_backwardb_clicked() {
+    OriginFile* prev = history.goBack();
+    if (prev != nullptr) {
+        currentDirectory = (Directory*)prev;
+        refreshUI();
+    }
 }
 
 void MainWindow::on_forwardb_clicked() {
+    OriginFile* next = history.goForward();
+    if (next != nullptr) {
+        currentDirectory = (Directory*)next;
+        refreshUI();
+    }
 }
 
 void MainWindow::on_parentb_clicked() {
@@ -318,3 +342,12 @@ void MainWindow::on_parentb_clicked() {
 void MainWindow::on_treeView_doubleClicked(const QModelIndex &index) {
 }
 
+void MainWindow::on_renameb_clicked() {
+    QModelIndex index = ui->listView->currentIndex();
+    if (index.isValid()) {
+        OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+        triggerRename(item);
+    } else {
+        QMessageBox::warning(this, "Selection", "Please select an item first.");
+    }
+}

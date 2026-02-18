@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QStandardItemModel>
+#include "navigationhistory.h"
 #include "originfile.h"
 #include "directory.h"
 #include "file.h"
@@ -31,9 +32,12 @@ private slots:
     void on_treeView_doubleClicked(const QModelIndex &index);
     void customMenu(const QPoint &pos);
 
+    void on_renameb_clicked();
+
 private:
     Ui::MainWindow *ui;
 
+    NavigationHistory history;
     OriginFile* root;
     Directory* currentDirectory;
     Directory* recycleBin;
@@ -43,6 +47,8 @@ private:
     QStandardItemModel* listModel;
     QStandardItemModel* treeModel;
 
+private:
+    void triggerRename(OriginFile* item);
     void refreshUI();
     void saveSystem();
     void loadSystem();

@@ -5,22 +5,19 @@
 
 class NavigationHistory {
 private:
-    HistoryNode* current;
     HistoryNode* head;
     HistoryNode* tail;
-
-    void clearForward();
+    HistoryNode* current;
 
 public:
     NavigationHistory();
     ~NavigationHistory();
 
-    void addVisit(QString path);
-    QString goBack();
-    QString goForward();
-    QString getCurrent();
-
+    void addVisit(OriginFile* dir);
+    OriginFile* goBack();
+    OriginFile* goForward();
     bool canGoBack();
     bool canGoForward();
 };
+
 #endif // NAVIGATIONHISTORY_H

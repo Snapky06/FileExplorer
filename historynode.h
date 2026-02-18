@@ -1,14 +1,15 @@
 #ifndef HISTORYNODE_H
 #define HISTORYNODE_H
 
-#include <QString>
+#include "originfile.h"
 
 class HistoryNode {
 public:
-    QString path;
+    OriginFile* directory;
     HistoryNode* next;
     HistoryNode* prev;
 
-    HistoryNode(QString p);
+    HistoryNode(OriginFile* dir);
 };
+
 #endif // HISTORYNODE_H

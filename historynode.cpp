@@ -1,7 +1,7 @@
 #include "historynode.h"
 
-HistoryNode::HistoryNode(QString p) {
-    path = p;
+HistoryNode::HistoryNode(OriginFile* dir) {
+    directory = dir;
     next = nullptr;
     prev = nullptr;
 }
