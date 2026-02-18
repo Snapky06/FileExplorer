@@ -71,22 +71,12 @@
        <number>1</number>
       </property>
       <item>
-       <widget class="QPushButton" name="directoryb">
+       <widget class="QPushButton" name="createb">
         <property name="text">
          <string/>
         </property>
         <property name="icon">
          <iconset theme="QIcon::ThemeIcon::FolderNew"/>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="fileb">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="icon">
-         <iconset theme="QIcon::ThemeIcon::FolderOpen"/>
         </property>
        </widget>
       </item>
@@ -143,9 +133,26 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="renameb">
+        <property name="text">
+         <string>Rename</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="sortb">
         <property name="text">
          <string>Sort</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="details">
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset theme="QIcon::ThemeIcon::InsertImage"/>
         </property>
        </widget>
       </item>

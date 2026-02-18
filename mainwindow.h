@@ -3,8 +3,9 @@
 
 #include <QMainWindow>
 #include <QStandardItemModel>
-#include <QDir>
-#include "navigationhistory.h"
+#include "originfile.h"
+#include "directory.h"
+#include "file.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -18,8 +19,7 @@ public:
     ~MainWindow();
 
 private slots:
-    void on_directoryb_clicked();
-    void on_fileb_clicked();
+    void on_createb_clicked();
     void on_deleteb_clicked();
     void on_copyb_clicked();
     void on_cutb_clicked();
@@ -28,19 +28,27 @@ private slots:
     void on_forwardb_clicked();
     void on_parentb_clicked();
     void on_listView_doubleClicked(const QModelIndex &index);
-    void showContextMenu(const QPoint &pos);
+    void on_treeView_doubleClicked(const QModelIndex &index);
+    void customMenu(const QPoint &pos);
 
 private:
     Ui::MainWindow *ui;
-    QStandardItemModel* listModel;
-    NavigationHistory history;
 
-    QString currentPath;
-    QString clipboardPath;
+    OriginFile* root;
+    Directory* currentDirectory;
+    Directory* recycleBin;
+    OriginFile* clipboard;
     bool isCutOperation;
 
-    void extracted(QFileInfoList &list);
+    QStandardItemModel* listModel;
+    QStandardItemModel* treeModel;
+
     void refreshUI();
-    void updateButtons();
+    void saveSystem();
+    void loadSystem();
+    void setupModels();
+    void fillTreeRecursive(OriginFile* node, QStandardItem* parentItem);
+    bool checkDuplicateName(QString name);
+    QString calculateFullPath(OriginFile* node);
 };
 #endif // MAINWINDOW_H

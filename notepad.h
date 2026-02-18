@@ -2,6 +2,7 @@
 #define NOTEPAD_H
 
 #include <QMainWindow>
+#include "file.h"
 
 namespace Ui { class Notepad; }
 
@@ -9,16 +10,15 @@ class Notepad : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit Notepad(QString filePath, QWidget *parent = nullptr);
+    explicit Notepad(File* file, QWidget *parent = nullptr);
     ~Notepad();
 
 private slots:
-    void on_saveButton_clicked();
-    void on_closeButton_clicked();
+    void on_saveB_clicked();
 
 private:
     Ui::Notepad *ui;
-    QString filePath;
-    void loadFile();
+    File* currentFile;
 };
+
 #endif // NOTEPAD_H

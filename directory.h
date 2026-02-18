@@ -2,17 +2,26 @@
 #define DIRECTORY_H
 
 #include "originfile.h"
+#include <vector>
 
 class Directory : public OriginFile {
+private:
+    std::vector<OriginFile*> children;
+
 public:
     Directory(QString name, OriginFile* parent = nullptr);
     ~Directory();
 
-    long getSize() override;
-    int getFileCount();
+    void addChild(OriginFile* child);
+    void removeChild(OriginFile* child);
 
-    void writeBinary(QDataStream &out) override;
-    void readBinary(QDataStream &in) override;
+    int getChildCount();
+    OriginFile* getChild(int index);
+    std::vector<OriginFile*> getChildren();
+
+    long getSize() override;
+    void write(QDataStream &out) override;
+    void read(QDataStream &in) override;
 };
 
-#endif
+#endif // DIRECTORY_H

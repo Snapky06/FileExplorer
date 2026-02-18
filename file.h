@@ -12,11 +12,11 @@ public:
     ~File();
 
     QString getContent();
-    void setContent(QString newContent);
+    void setContent(QString c);
 
     long getSize() override;
-    void writeBinary(QDataStream &out) override;
-    void readBinary(QDataStream &in) override;
+    void write(QDataStream &out) override;
+    void read(QDataStream &in) override;
 };
 
-#endif
+#endif //FILE_H
