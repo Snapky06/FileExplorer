@@ -81,6 +81,26 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="copyb">
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset theme="QIcon::ThemeIcon::EditCopy"/>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pasteb">
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset theme="QIcon::ThemeIcon::EditPaste"/>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="cutb">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -109,26 +129,6 @@
         </property>
         <property name="icon">
          <iconset theme="QIcon::ThemeIcon::EditDelete"/>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="copyb">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="icon">
-         <iconset theme="QIcon::ThemeIcon::EditCopy"/>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="pasteb">
-        <property name="text">
-         <string/>
-        </property>
-        <property name="icon">
-         <iconset theme="QIcon::ThemeIcon::EditPaste"/>
         </property>
        </widget>
       </item>
@@ -222,6 +222,17 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+R</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actiondelete">
+   <property name="text">
+    <string>delete</string>
+   </property>
+   <property name="shortcut">
+    <string>Backspace</string>
    </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>

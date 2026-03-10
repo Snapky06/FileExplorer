@@ -32,6 +32,12 @@ private slots:
     void on_renameb_clicked();
     void customMenu(const QPoint &pos);
 
+    void on_actionpaste_triggered();
+    void on_actioncut_triggered();
+    void on_actioncopy_triggered();
+    void on_actionrename_triggered();
+    void on_actiondelete_triggered();
+
 private:
     Ui::MainWindow *ui;
 
@@ -49,10 +55,10 @@ private:
 
     void refreshUI();
     QString calculateFullPath(OriginFile* node);
-    void fillTreeRecursive(OriginFile* node, QStandardItem* parentItem, bool showFiles);
-    void fillFavorites(OriginFile* node, QStandardItem* favRoot);
+    void fillFavorites(OriginFile* node);
     void saveSystem();
     void loadSystem();
+    OriginFile* cloneNode(OriginFile* node, Directory* parent);
 };
 
 #endif // MAINWINDOW_H
