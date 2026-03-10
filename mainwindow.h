@@ -3,10 +3,9 @@
 
 #include <QMainWindow>
 #include <QStandardItemModel>
-#include "navigationhistory.h"
-#include "originfile.h"
 #include "directory.h"
 #include "file.h"
+#include "navigationhistory.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -20,6 +19,8 @@ public:
     ~MainWindow();
 
 private slots:
+    void on_listView_doubleClicked(const QModelIndex &index);
+    void on_treeView_doubleClicked(const QModelIndex &index);
     void on_createb_clicked();
     void on_deleteb_clicked();
     void on_copyb_clicked();
@@ -28,33 +29,30 @@ private slots:
     void on_backwardb_clicked();
     void on_forwardb_clicked();
     void on_parentb_clicked();
-    void on_listView_doubleClicked(const QModelIndex &index);
-    void on_treeView_doubleClicked(const QModelIndex &index);
-    void customMenu(const QPoint &pos);
-
     void on_renameb_clicked();
+    void customMenu(const QPoint &pos);
 
 private:
     Ui::MainWindow *ui;
 
-    NavigationHistory history;
-    OriginFile* root;
-    Directory* currentDirectory;
+    Directory* root;
     Directory* recycleBin;
+    Directory* currentDirectory;
+
     OriginFile* clipboard;
     bool isCutOperation;
+
+    NavigationHistory history;
 
     QStandardItemModel* listModel;
     QStandardItemModel* treeModel;
 
-private:
-    void triggerRename(OriginFile* item);
     void refreshUI();
+    QString calculateFullPath(OriginFile* node);
+    void fillTreeRecursive(OriginFile* node, QStandardItem* parentItem, bool showFiles);
+    void fillFavorites(OriginFile* node, QStandardItem* favRoot);
     void saveSystem();
     void loadSystem();
-    void setupModels();
-    void fillTreeRecursive(OriginFile* node, QStandardItem* parentItem);
-    bool checkDuplicateName(QString name);
-    QString calculateFullPath(OriginFile* node);
 };
+
 #endif // MAINWINDOW_H

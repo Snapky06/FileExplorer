@@ -13,6 +13,7 @@ protected:
     bool isDirectory;
     bool isFavorite;
     bool inRecycleBin;
+    QString originalPath;
     OriginFile* parent;
 
 public:
@@ -29,6 +30,9 @@ public:
 
     bool getInRecycleBin();
     void setInRecycleBin(bool val);
+
+    QString getOriginalPath();
+    void setOriginalPath(QString path);
 
     OriginFile* getParent();
     void setParent(OriginFile* p);

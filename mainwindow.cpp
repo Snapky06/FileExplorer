@@ -11,14 +11,23 @@
 #include <QStyle>
 #include <QMenu>
 #include <QAction>
+#include <QCoreApplication>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow) {
     ui->setupUi(this);
-    setupModels();
 
-    currentDirectory = (Directory*)root;
-    history.addVisit(currentDirectory);
-    refreshUI();
+    listModel = new QStandardItemModel(this);
+    QStringList headers;
+    headers << "Name";
+    listModel->setHorizontalHeaderLabels(headers);
+    ui->listView->setModel(listModel);
+
+    ui->listView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->listView, &QWidget::customContextMenuRequested, this, &MainWindow::customMenu);
+
+    treeModel = new QStandardItemModel(this);
+    treeModel->setHorizontalHeaderLabels(headers);
+    ui->treeView->setModel(treeModel);
 
     root = nullptr;
     recycleBin = nullptr;
@@ -38,6 +47,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     }
 
     currentDirectory = (Directory*)root;
+    history.addVisit(currentDirectory);
     refreshUI();
 }
 
@@ -48,43 +58,6 @@ MainWindow::~MainWindow() {
     delete ui;
 }
 
-void MainWindow::setupModels() {
-    listModel = new QStandardItemModel(this);
-    QStringList headers;
-    headers << "Name";
-    listModel->setHorizontalHeaderLabels(headers);
-    ui->listView->setModel(listModel);
-
-    ui->listView->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(ui->listView, &QWidget::customContextMenuRequested, this, &MainWindow::customMenu);
-
-    treeModel = new QStandardItemModel(this);
-    treeModel->setHorizontalHeaderLabels(headers);
-    ui->treeView->setModel(treeModel);
-}
-
-void MainWindow::triggerRename(OriginFile* item) {
-    if (!item) return;
-
-    bool ok;
-    QString oldName = item->getName();
-    QString newName = QInputDialog::getText(this, "Rename", "New Name:", QLineEdit::Normal, oldName, &ok);
-
-    if (ok && !newName.isEmpty() && newName != oldName) {
-        if (!item->getIsDirectory() && !newName.endsWith(".txt")) {
-            newName += ".txt";
-        }
-
-        if (checkDuplicateName(newName)) {
-            QMessageBox::warning(this, "Error", "A file or folder with this name already exists.");
-        } else {
-            item->setName(newName);
-            refreshUI();
-            saveSystem();
-        }
-    }
-}
-
 void MainWindow::customMenu(const QPoint &pos) {
     QModelIndex index = ui->listView->indexAt(pos);
     if (!index.isValid()) return;
@@ -93,27 +66,118 @@ void MainWindow::customMenu(const QPoint &pos) {
     if (!item) return;
 
     QMenu menu(this);
-    QAction* openAct = menu.addAction("Open");
-    QAction* editAct = nullptr;
-    if (!item->getIsDirectory()) {
-        editAct = menu.addAction("Edit");
-    }
-    QAction* renameAct = menu.addAction("Rename");
 
-    connect(openAct, &QAction::triggered, this, [this, index]() {
-        on_listView_doubleClicked(index);
-    });
+    if (currentDirectory == recycleBin) {
+        QAction* recoverAct = menu.addAction("Recover");
+        QAction* deleteAct = menu.addAction("Delete");
 
-    if (editAct) {
-        connect(editAct, &QAction::triggered, this, [this, item]() {
-            Notepad* editor = new Notepad((File*)item, this);
-            editor->show();
+        connect(recoverAct, &QAction::triggered, this, [this, item]() {
+            QString path = item->getOriginalPath();
+            OriginFile* targetParent = root;
+
+            if (path != "/" && path != "") {
+                QStringList parts = path.split("/", Qt::SkipEmptyParts);
+                Directory* temp = (Directory*)root;
+                bool pathFound = true;
+
+                for (int i = 0; i < parts.size(); i++) {
+                    bool found = false;
+                    std::vector<OriginFile*> children = temp->getChildren();
+                    for (int j = 0; j < (int)children.size(); j++) {
+                        if (children[j]->getName() == parts[i] && children[j]->getIsDirectory()) {
+                            temp = (Directory*)children[j];
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        pathFound = false;
+                        break;
+                    }
+                }
+                if (pathFound) {
+                    targetParent = temp;
+                }
+            }
+
+            recycleBin->detachChild(item);
+            item->setInRecycleBin(false);
+            ((Directory*)targetParent)->addChild(item);
+            item->setParent(targetParent);
+            refreshUI();
+            saveSystem();
+        });
+
+        connect(deleteAct, &QAction::triggered, this, [this, item]() {
+            recycleBin->removeChild(item);
+            refreshUI();
+            saveSystem();
+        });
+    } else {
+        QAction* openAct = nullptr;
+        QAction* editAct = nullptr;
+
+        if (item->getIsDirectory()) {
+            openAct = menu.addAction("Open");
+        } else {
+            editAct = menu.addAction("Edit");
+        }
+
+        QAction* renameAct = menu.addAction("Rename");
+        QAction* deleteAct = menu.addAction("Delete");
+
+        if (openAct) {
+            connect(openAct, &QAction::triggered, this, [this, index]() {
+                on_listView_doubleClicked(index);
+            });
+        }
+
+        if (editAct) {
+            connect(editAct, &QAction::triggered, this, [this, item]() {
+                Notepad* editor = new Notepad((File*)item, this);
+                editor->show();
+            });
+        }
+
+        connect(renameAct, &QAction::triggered, this, [this, item]() {
+            bool ok;
+            QString oldName = item->getName();
+            QString newName = QInputDialog::getText(this, "Rename", "New Name:", QLineEdit::Normal, oldName, &ok);
+
+            if (ok && !newName.isEmpty() && newName != oldName) {
+                if (!item->getIsDirectory() && !newName.endsWith(".txt")) {
+                    newName += ".txt";
+                }
+
+                bool duplicate = false;
+                std::vector<OriginFile*> children = currentDirectory->getChildren();
+                for (int i = 0; i < (int)children.size(); i++) {
+                    if (children[i]->getName() == newName) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+
+                if (duplicate) {
+                    QMessageBox::warning(this, "Error", "A file or folder with this name already exists.");
+                } else {
+                    item->setName(newName);
+                    refreshUI();
+                    saveSystem();
+                }
+            }
+        });
+
+        connect(deleteAct, &QAction::triggered, this, [this, item]() {
+            item->setOriginalPath(calculateFullPath(currentDirectory));
+            currentDirectory->detachChild(item);
+            recycleBin->addChild(item);
+            item->setInRecycleBin(true);
+            item->setParent(recycleBin);
+            refreshUI();
+            saveSystem();
         });
     }
-
-    connect(renameAct, &QAction::triggered, this, [this, item]() {
-        triggerRename(item);
-    });
 
     menu.exec(ui->listView->mapToGlobal(pos));
 }
@@ -146,17 +210,32 @@ void MainWindow::refreshUI() {
         listModel->appendRow(listItem);
     }
 
-    QStandardItem* favRoot = new QStandardItem("Favorites");
-    favRoot->setIcon(style()->standardIcon(QStyle::SP_DirLinkIcon));
+    QStandardItem* specialFolders = new QStandardItem("Special Folders");
+    QFont sfFont = specialFolders->font();
+    sfFont.setBold(true);
+    specialFolders->setFont(sfFont);
 
-    QStandardItem* binRoot = new QStandardItem("Recycle Bin");
-    binRoot->setIcon(style()->standardIcon(QStyle::SP_TrashIcon));
+    QStandardItem* homeNode = new QStandardItem("Home");
+    homeNode->setIcon(style()->standardIcon(QStyle::SP_DirHomeIcon));
+    homeNode->setData(QVariant::fromValue((void*)root));
 
-    fillTreeRecursive(root, favRoot);
-    fillTreeRecursive(recycleBin, binRoot);
+    QStandardItem* favNode = new QStandardItem("Favorites");
+    favNode->setIcon(style()->standardIcon(QStyle::SP_DirLinkIcon));
 
-    treeModel->appendRow(favRoot);
-    treeModel->appendRow(binRoot);
+    QStandardItem* binNode = new QStandardItem("Recycle Bin");
+    binNode->setIcon(style()->standardIcon(QStyle::SP_TrashIcon));
+    binNode->setData(QVariant::fromValue((void*)recycleBin));
+
+    specialFolders->appendRow(homeNode);
+    specialFolders->appendRow(favNode);
+    specialFolders->appendRow(binNode);
+
+    treeModel->appendRow(specialFolders);
+
+    fillTreeRecursive(root, homeNode, false);
+    fillFavorites(root, favNode);
+    fillTreeRecursive(recycleBin, binNode, true);
+
     ui->treeView->expandAll();
 }
 
@@ -176,9 +255,7 @@ void MainWindow::on_listView_doubleClicked(const QModelIndex &index) {
     if (item != nullptr) {
         if (item->getIsDirectory()) {
             currentDirectory = (Directory*)item;
-
             history.addVisit(currentDirectory);
-
             refreshUI();
         } else {
             Notepad* editor = new Notepad((File*)item, this);
@@ -187,33 +264,62 @@ void MainWindow::on_listView_doubleClicked(const QModelIndex &index) {
     }
 }
 
-void MainWindow::fillTreeRecursive(OriginFile* node, QStandardItem* parentItem) {
-    if (!node) return;
+void MainWindow::fillTreeRecursive(OriginFile* node, QStandardItem* parentItem, bool showFiles) {
+    if (!node || !parentItem) return;
 
     if (node->getIsDirectory()) {
-        if (node->getIsFavorite() && !node->getInRecycleBin()) {
-            QStandardItem* item = new QStandardItem(node->getName());
-            item->setData(QVariant::fromValue((void*)node));
-            item->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
-            parentItem->appendRow(item);
+        Directory* dir = (Directory*)node;
+        std::vector<OriginFile*> children = dir->getChildren();
+        for (int i = 0; i < (int)children.size(); i++) {
+            OriginFile* child = children[i];
 
-            Directory* dir = (Directory*)node;
-            std::vector<OriginFile*> children = dir->getChildren();
-            for (int i = 0; i < (int)children.size(); i++) {
-                fillTreeRecursive(children[i], item);
+            if (child->getIsDirectory() || showFiles) {
+                QStandardItem* item = new QStandardItem(child->getName());
+                item->setData(QVariant::fromValue((void*)child));
+
+                if (child->getIsDirectory()) {
+                    item->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+                    fillTreeRecursive(child, item, showFiles);
+                } else {
+                    item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+                }
+
+                parentItem->appendRow(item);
             }
-        } else {
-            Directory* dir = (Directory*)node;
-            std::vector<OriginFile*> children = dir->getChildren();
-            for (int i = 0; i < (int)children.size(); i++) {
-                fillTreeRecursive(children[i], parentItem);
+        }
+    }
+}
+
+void MainWindow::fillFavorites(OriginFile* node, QStandardItem* favRoot) {
+    if (!node || !favRoot) return;
+
+    if (node->getIsDirectory()) {
+        Directory* dir = (Directory*)node;
+        std::vector<OriginFile*> children = dir->getChildren();
+        for (int i = 0; i < (int)children.size(); i++) {
+            OriginFile* child = children[i];
+
+            if (child->getIsFavorite() && !child->getInRecycleBin()) {
+                QStandardItem* item = new QStandardItem(child->getName());
+                item->setData(QVariant::fromValue((void*)child));
+                if (child->getIsDirectory()) {
+                    item->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+                } else {
+                    item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+                }
+                favRoot->appendRow(item);
+            }
+
+            if (child->getIsDirectory()) {
+                fillFavorites(child, favRoot);
             }
         }
     }
 }
 
 void MainWindow::saveSystem() {
-    QFile file("system.bin");
+    QString path = QCoreApplication::applicationDirPath() + "/system.bin";
+    QFile file(path);
     if (file.open(QIODevice::WriteOnly)) {
         QDataStream out(&file);
         if (root) root->write(out);
@@ -223,7 +329,8 @@ void MainWindow::saveSystem() {
 }
 
 void MainWindow::loadSystem() {
-    QFile file("system.bin");
+    QString path = QCoreApplication::applicationDirPath() + "/system.bin";
+    QFile file(path);
     if (file.exists() && file.open(QIODevice::ReadOnly)) {
         QDataStream in(&file);
 
@@ -236,14 +343,6 @@ void MainWindow::loadSystem() {
         }
         file.close();
     }
-}
-
-bool MainWindow::checkDuplicateName(QString name) {
-    std::vector<OriginFile*> children = currentDirectory->getChildren();
-    for (int i = 0; i < (int)children.size(); i++) {
-        if (children[i]->getName() == name) return true;
-    }
-    return false;
 }
 
 void MainWindow::on_createb_clicked() {
@@ -277,7 +376,16 @@ void MainWindow::on_createb_clicked() {
         bool ok;
         QString name = QInputDialog::getText(this, "New Directory", "Name:", QLineEdit::Normal, "", &ok);
         if (ok && !name.isEmpty()) {
-            if (checkDuplicateName(name)) {
+            bool duplicate = false;
+            std::vector<OriginFile*> children = currentDirectory->getChildren();
+            for (int i = 0; i < (int)children.size(); i++) {
+                if (children[i]->getName() == name) {
+                    duplicate = true;
+                    break;
+                }
+            }
+
+            if (duplicate) {
                 QMessageBox::warning(this, "Error", "A folder with this name already exists.");
             } else {
                 Directory* newDir = new Directory(name, currentDirectory);
@@ -292,7 +400,16 @@ void MainWindow::on_createb_clicked() {
         if (ok && !name.isEmpty()) {
             if (!name.endsWith(".txt")) name += ".txt";
 
-            if (checkDuplicateName(name)) {
+            bool duplicate = false;
+            std::vector<OriginFile*> children = currentDirectory->getChildren();
+            for (int i = 0; i < (int)children.size(); i++) {
+                if (children[i]->getName() == name) {
+                    duplicate = true;
+                    break;
+                }
+            }
+
+            if (duplicate) {
                 QMessageBox::warning(this, "Error", "A file with this name already exists.");
             } else {
                 File* newFile = new File(name, currentDirectory);
@@ -305,6 +422,26 @@ void MainWindow::on_createb_clicked() {
 }
 
 void MainWindow::on_deleteb_clicked() {
+    QModelIndex index = ui->listView->currentIndex();
+    if (!index.isValid()) {
+        QMessageBox::warning(this, "Selection", "Please select an item first.");
+        return;
+    }
+
+    OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+    if (!item) return;
+
+    if (currentDirectory == recycleBin) {
+        recycleBin->removeChild(item);
+    } else {
+        item->setOriginalPath(calculateFullPath(currentDirectory));
+        currentDirectory->detachChild(item);
+        recycleBin->addChild(item);
+        item->setInRecycleBin(true);
+        item->setParent(recycleBin);
+    }
+    refreshUI();
+    saveSystem();
 }
 
 void MainWindow::on_copyb_clicked() {
@@ -340,13 +477,46 @@ void MainWindow::on_parentb_clicked() {
 }
 
 void MainWindow::on_treeView_doubleClicked(const QModelIndex &index) {
+    OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+    if (item != nullptr && item->getIsDirectory()) {
+        currentDirectory = (Directory*)item;
+        history.addVisit(currentDirectory);
+        refreshUI();
+    }
 }
 
 void MainWindow::on_renameb_clicked() {
     QModelIndex index = ui->listView->currentIndex();
     if (index.isValid()) {
         OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
-        triggerRename(item);
+        if (!item) return;
+
+        bool ok;
+        QString oldName = item->getName();
+        QString newName = QInputDialog::getText(this, "Rename", "New Name:", QLineEdit::Normal, oldName, &ok);
+
+        if (ok && !newName.isEmpty() && newName != oldName) {
+            if (!item->getIsDirectory() && !newName.endsWith(".txt")) {
+                newName += ".txt";
+            }
+
+            bool duplicate = false;
+            std::vector<OriginFile*> children = currentDirectory->getChildren();
+            for (int i = 0; i < (int)children.size(); i++) {
+                if (children[i]->getName() == newName) {
+                    duplicate = true;
+                    break;
+                }
+            }
+
+            if (duplicate) {
+                QMessageBox::warning(this, "Error", "A file or folder with this name already exists.");
+            } else {
+                item->setName(newName);
+                refreshUI();
+                saveSystem();
+            }
+        }
     } else {
         QMessageBox::warning(this, "Selection", "Please select an item first.");
     }

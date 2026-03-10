@@ -16,6 +16,10 @@ NavigationHistory::~NavigationHistory() {
 }
 
 void NavigationHistory::addVisit(OriginFile* dir) {
+    if (current != nullptr && current->directory == dir) {
+        return;
+    }
+
     HistoryNode* newNode = new HistoryNode(dir);
     if (head == nullptr) {
         head = newNode;
@@ -37,39 +41,25 @@ void NavigationHistory::addVisit(OriginFile* dir) {
 }
 
 OriginFile* NavigationHistory::goBack() {
-    if (current != nullptr) {
-        if (current->prev != nullptr) {
-            current = current->prev;
-            return current->directory;
-        }
+    if (current != nullptr && current->prev != nullptr) {
+        current = current->prev;
+        return current->directory;
     }
     return nullptr;
 }
 
 OriginFile* NavigationHistory::goForward() {
-    if (current != nullptr) {
-        if (current->next != nullptr) {
-            current = current->next;
-            return current->directory;
-        }
+    if (current != nullptr && current->next != nullptr) {
+        current = current->next;
+        return current->directory;
     }
     return nullptr;
 }
 
 bool NavigationHistory::canGoBack() {
-    if (current != nullptr) {
-        if (current->prev != nullptr) {
-            return true;
-        }
-    }
-    return false;
+    return (current != nullptr && current->prev != nullptr);
 }
 
 bool NavigationHistory::canGoForward() {
-    if (current != nullptr) {
-        if (current->next != nullptr) {
-            return true;
-        }
-    }
-    return false;
+    return (current != nullptr && current->next != nullptr);
 }

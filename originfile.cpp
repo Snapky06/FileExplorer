@@ -8,6 +8,7 @@ OriginFile::OriginFile(QString name, bool isDirectory, OriginFile* parent) {
     this->modified = this->created;
     this->isFavorite = false;
     this->inRecycleBin = false;
+    this->originalPath = "";
 }
 
 OriginFile::~OriginFile() {
@@ -42,6 +43,14 @@ void OriginFile::setInRecycleBin(bool val) {
     inRecycleBin = val;
 }
 
+QString OriginFile::getOriginalPath() {
+    return originalPath;
+}
+
+void OriginFile::setOriginalPath(QString path) {
+    originalPath = path;
+}
+
 OriginFile* OriginFile::getParent() {
     return parent;
 }
@@ -51,9 +60,9 @@ void OriginFile::setParent(OriginFile* p) {
 }
 
 void OriginFile::write(QDataStream &out) {
-    out << name << created << modified << isDirectory << isFavorite << inRecycleBin;
+    out << name << created << modified << isDirectory << isFavorite << inRecycleBin << originalPath;
 }
 
 void OriginFile::read(QDataStream &in) {
-    in >> name >> created >> modified >> isDirectory >> isFavorite >> inRecycleBin;
+    in >> name >> created >> modified >> isDirectory >> isFavorite >> inRecycleBin >> originalPath;
 }

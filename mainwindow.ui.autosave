@@ -227,6 +227,17 @@
     <enum>QAction::MenuRole::NoRole</enum>
    </property>
   </action>
+  <action name="actiondelete">
+   <property name="text">
+    <string>delete</string>
+   </property>
+   <property name="shortcut">
+    <string>Backspace</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections/>

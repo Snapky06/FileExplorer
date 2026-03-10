@@ -14,11 +14,11 @@ public:
 
     void addChild(OriginFile* child);
     void removeChild(OriginFile* child);
+    void detachChild(OriginFile* child);
 
     int getChildCount();
     OriginFile* getChild(int index);
     std::vector<OriginFile*> getChildren();
-
     long getSize() override;
     void write(QDataStream &out) override;
     void read(QDataStream &in) override;

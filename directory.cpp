@@ -21,9 +21,19 @@ void Directory::addChild(OriginFile* child) {
     children.push_back(child);
 }
 
+void Directory::detachChild(OriginFile* child) {
+    for (int i = 0; i < (int)children.size(); i++) {
+        if (children[i] == child) {
+            children.erase(children.begin() + i);
+            break;
+        }
+    }
+}
+
 void Directory::removeChild(OriginFile* child) {
     for (int i = 0; i < (int)children.size(); i++) {
         if (children[i] == child) {
+            delete children[i];
             children.erase(children.begin() + i);
             break;
         }
