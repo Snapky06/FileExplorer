@@ -11,8 +11,8 @@ protected:
     QDateTime created;
     QDateTime modified;
     bool isDirectory;
-    bool isFavorite;
-    bool inRecycleBin;
+    bool isFavorite = false;
+    bool inRecycleBin = false;
     QString originalPath;
     OriginFile* parent;
 

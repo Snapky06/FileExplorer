@@ -12,6 +12,7 @@
 #include <QMenu>
 #include <QAction>
 #include <QCoreApplication>
+#include <QKeySequence>
 #include <QAbstractItemView>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow) {
@@ -31,6 +32,30 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     treeModel->setHorizontalHeaderLabels(headers);
     ui->treeView->setModel(treeModel);
     ui->treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+    connect(ui->listView->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this](const QItemSelection &selected, const QItemSelection &deselected) {
+        if (!selected.isEmpty()) {
+            ui->treeView->selectionModel()->clearSelection();
+        }
+    });
+
+    connect(ui->treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this](const QItemSelection &selected, const QItemSelection &deselected) {
+        if (!selected.isEmpty()) {
+            ui->listView->selectionModel()->clearSelection();
+        }
+    });
+
+    ui->actioncopy->setShortcut(QKeySequence::Copy);
+    ui->actioncut->setShortcut(QKeySequence::Cut);
+    ui->actionpaste->setShortcut(QKeySequence::Paste);
+    ui->actiondelete->setShortcut(QKeySequence::Delete);
+    ui->actionrename->setShortcut(Qt::Key_F2);
+
+    ui->actioncopy->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    ui->actioncut->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    ui->actionpaste->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    ui->actiondelete->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    ui->actionrename->setShortcutContext(Qt::WidgetWithChildrenShortcut);
 
     ui->listView->addAction(ui->actioncopy);
     ui->listView->addAction(ui->actioncut);
@@ -73,6 +98,8 @@ void MainWindow::customMenu(const QPoint &pos) {
     if (!index.isValid()) return;
 
     ui->listView->setCurrentIndex(index);
+    ui->treeView->clearSelection();
+
     OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
     if (!item) return;
 
@@ -83,6 +110,7 @@ void MainWindow::customMenu(const QPoint &pos) {
         QAction* deleteAct = menu.addAction("Delete");
 
         connect(recoverAct, &QAction::triggered, this, [this, item]() {
+            if (!item) return;
             QString path = item->getOriginalPath();
             Directory* targetParent = (Directory*)root;
 
@@ -139,8 +167,8 @@ void MainWindow::customMenu(const QPoint &pos) {
             targetParent->addChild(item);
             item->setParent(targetParent);
 
-            refreshUI();
             saveSystem();
+            refreshUI();
         });
 
         connect(deleteAct, &QAction::triggered, this, &MainWindow::on_deleteb_clicked);
@@ -174,16 +202,20 @@ void MainWindow::customMenu(const QPoint &pos) {
 
         if (editAct) {
             connect(editAct, &QAction::triggered, this, [this, item]() {
-                Notepad* editor = new Notepad((File*)item, this);
-                editor->show();
+                if (item) {
+                    Notepad* editor = new Notepad((File*)item, this);
+                    editor->show();
+                }
             });
         }
 
         if (favAct) {
             connect(favAct, &QAction::triggered, this, [this, item]() {
-                item->setIsFavorite(!item->getIsFavorite());
-                refreshUI();
-                saveSystem();
+                if (item) {
+                    item->setIsFavorite(!item->getIsFavorite());
+                    saveSystem();
+                    refreshUI();
+                }
             });
         }
 
@@ -207,21 +239,25 @@ void MainWindow::refreshUI() {
 
     ui->pathline->setText(calculateFullPath(currentDirectory));
 
-    std::vector<OriginFile*> children = currentDirectory->getChildren();
-    for (int i = 0; i < (int)children.size(); i++) {
-        OriginFile* item = children[i];
-        QStandardItem* listItem = new QStandardItem(item->getName());
-        listItem->setData(QVariant::fromValue((void*)item));
+    if (currentDirectory) {
+        std::vector<OriginFile*> children = currentDirectory->getChildren();
+        for (size_t i = 0; i < children.size(); i++) {
+            OriginFile* item = children[i];
+            if (!item) continue;
 
-        if (item->getIsDirectory()) {
-            listItem->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
-            QFont font = listItem->font();
-            font.setBold(true);
-            listItem->setFont(font);
-        } else {
-            listItem->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+            QStandardItem* listItem = new QStandardItem(item->getName());
+            listItem->setData(QVariant::fromValue((void*)item));
+
+            if (item->getIsDirectory()) {
+                listItem->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+                QFont font = listItem->font();
+                font.setBold(true);
+                listItem->setFont(font);
+            } else {
+                listItem->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+            }
+            listModel->appendRow(listItem);
         }
-        listModel->appendRow(listItem);
     }
 
     QStandardItem* homeNode = new QStandardItem("Home");
@@ -234,34 +270,36 @@ void MainWindow::refreshUI() {
     binNode->setData(QVariant::fromValue((void*)recycleBin));
     treeModel->appendRow(binNode);
 
-    fillFavorites(root);
+    if (root) {
+        fillFavorites(root, treeModel->invisibleRootItem());
+    }
 }
 
-void MainWindow::fillFavorites(OriginFile* node) {
-    if (!node) return;
+void MainWindow::fillFavorites(OriginFile* node, QStandardItem* parentItem) {
+    if (!node || !node->getIsDirectory() || !parentItem) return;
 
-    if (node->getIsDirectory()) {
-        Directory* dir = (Directory*)node;
-        std::vector<OriginFile*> children = dir->getChildren();
-        for (int i = 0; i < (int)children.size(); i++) {
-            OriginFile* child = children[i];
+    Directory* dir = static_cast<Directory*>(node);
+    std::vector<OriginFile*> children = dir->getChildren();
 
-            if (child->getIsFavorite() && !child->getInRecycleBin()) {
-                QStandardItem* item = new QStandardItem(child->getName());
-                item->setData(QVariant::fromValue((void*)child));
+    for (size_t i = 0; i < children.size(); i++) {
+        OriginFile* child = children[i];
+        if (!child) continue;
 
-                if (child->getIsDirectory()) {
-                    item->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
-                } else {
-                    item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
-                }
-
-                treeModel->appendRow(item);
-            }
+        if (child->getIsFavorite() && !child->getInRecycleBin()) {
+            QStandardItem* item = new QStandardItem(child->getName());
+            item->setData(QVariant::fromValue((void*)child));
 
             if (child->getIsDirectory()) {
-                fillFavorites(child);
+                item->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+            } else {
+                item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
             }
+
+            parentItem->appendRow(item);
+        }
+
+        if (child->getIsDirectory()) {
+            fillFavorites(child, parentItem);
         }
     }
 }
@@ -393,7 +431,7 @@ void MainWindow::on_createb_clicked() {
         if (ok && !name.isEmpty()) {
             bool duplicate = false;
             std::vector<OriginFile*> children = currentDirectory->getChildren();
-            for (int i = 0; i < (int)children.size(); i++) {
+            for (size_t i = 0; i < children.size(); i++) {
                 if (children[i]->getName() == name) {
                     duplicate = true;
                     break;
@@ -405,8 +443,8 @@ void MainWindow::on_createb_clicked() {
             } else {
                 Directory* newDir = new Directory(name, currentDirectory);
                 currentDirectory->addChild(newDir);
-                refreshUI();
                 saveSystem();
+                refreshUI();
             }
         }
     } else if (choice == 2) {
@@ -417,7 +455,7 @@ void MainWindow::on_createb_clicked() {
 
             bool duplicate = false;
             std::vector<OriginFile*> children = currentDirectory->getChildren();
-            for (int i = 0; i < (int)children.size(); i++) {
+            for (size_t i = 0; i < children.size(); i++) {
                 if (children[i]->getName() == name) {
                     duplicate = true;
                     break;
@@ -429,8 +467,8 @@ void MainWindow::on_createb_clicked() {
             } else {
                 File* newFile = new File(name, currentDirectory);
                 currentDirectory->addChild(newFile);
-                refreshUI();
                 saveSystem();
+                refreshUI();
             }
         }
     }
@@ -466,7 +504,7 @@ void MainWindow::on_deleteb_clicked() {
         while (duplicate) {
             duplicate = false;
             std::vector<OriginFile*> children = recycleBin->getChildren();
-            for (int i = 0; i < (int)children.size(); i++) {
+            for (size_t i = 0; i < children.size(); i++) {
                 if (children[i]->getName() == newName) {
                     duplicate = true;
                     break;
@@ -487,8 +525,8 @@ void MainWindow::on_deleteb_clicked() {
         item->setParent(recycleBin);
     }
 
-    refreshUI();
     saveSystem();
+    refreshUI();
 }
 
 void MainWindow::on_copyb_clicked() {
@@ -562,7 +600,7 @@ void MainWindow::on_pasteb_clicked() {
     while (duplicate) {
         duplicate = false;
         std::vector<OriginFile*> children = currentDirectory->getChildren();
-        for (int i = 0; i < (int)children.size(); i++) {
+        for (size_t i = 0; i < children.size(); i++) {
             if (children[i]->getName() == newName) {
                 duplicate = true;
                 break;
@@ -586,8 +624,8 @@ void MainWindow::on_pasteb_clicked() {
         isCutOperation = false;
     }
 
-    refreshUI();
     saveSystem();
+    refreshUI();
 }
 
 void MainWindow::on_backwardb_clicked() {
@@ -634,7 +672,7 @@ void MainWindow::on_renameb_clicked() {
 
         bool duplicate = false;
         std::vector<OriginFile*> children = currentDirectory->getChildren();
-        for (int i = 0; i < (int)children.size(); i++) {
+        for (size_t i = 0; i < children.size(); i++) {
             if (children[i]->getName() == newName) {
                 duplicate = true;
                 break;
@@ -645,8 +683,8 @@ void MainWindow::on_renameb_clicked() {
             QMessageBox::warning(this, "Error", "A file or folder with this name already exists.");
         } else {
             item->setName(newName);
-            refreshUI();
             saveSystem();
+            refreshUI();
         }
     }
 }

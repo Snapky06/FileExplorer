@@ -55,7 +55,7 @@ private:
 
     void refreshUI();
     QString calculateFullPath(OriginFile* node);
-    void fillFavorites(OriginFile* node);
+    void fillFavorites(OriginFile* node, QStandardItem* parentItem);
     void saveSystem();
     void loadSystem();
     OriginFile* cloneNode(OriginFile* node, Directory* parent);
