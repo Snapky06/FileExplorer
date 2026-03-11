@@ -30,6 +30,8 @@ private slots:
     void on_forwardb_clicked();
     void on_parentb_clicked();
     void on_renameb_clicked();
+    void on_sortb_clicked();
+    void on_detailsd_clicked();
     void customMenu(const QPoint &pos);
 
     void on_actionpaste_triggered();
@@ -47,6 +49,7 @@ private:
 
     OriginFile* clipboard;
     bool isCutOperation;
+    int currentViewMode;
 
     NavigationHistory history;
 

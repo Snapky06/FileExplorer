@@ -147,7 +147,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QPushButton" name="details">
+       <widget class="QPushButton" name="detailsd">
         <property name="text">
          <string/>
         </property>

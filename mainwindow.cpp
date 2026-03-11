@@ -12,8 +12,8 @@
 #include <QMenu>
 #include <QAction>
 #include <QCoreApplication>
-#include <QKeySequence>
 #include <QAbstractItemView>
+#include <QCursor>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow) {
     ui->setupUi(this);
@@ -45,28 +45,23 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         }
     });
 
-    ui->actioncopy->setShortcut(QKeySequence::Copy);
-    ui->actioncut->setShortcut(QKeySequence::Cut);
-    ui->actionpaste->setShortcut(QKeySequence::Paste);
-    ui->actiondelete->setShortcut(QKeySequence::Delete);
-    ui->actionrename->setShortcut(Qt::Key_F2);
-
-    ui->actioncopy->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    ui->actioncut->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    ui->actionpaste->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    ui->actiondelete->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    ui->actionrename->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-
     ui->listView->addAction(ui->actioncopy);
     ui->listView->addAction(ui->actioncut);
     ui->listView->addAction(ui->actionpaste);
     ui->listView->addAction(ui->actiondelete);
     ui->listView->addAction(ui->actionrename);
 
+    ui->treeView->addAction(ui->actioncopy);
+    ui->treeView->addAction(ui->actioncut);
+    ui->treeView->addAction(ui->actionpaste);
+    ui->treeView->addAction(ui->actiondelete);
+    ui->treeView->addAction(ui->actionrename);
+
     root = nullptr;
     recycleBin = nullptr;
     clipboard = nullptr;
     isCutOperation = false;
+    currentViewMode = 1;
 
     loadSystem();
 
@@ -91,6 +86,28 @@ MainWindow::~MainWindow() {
     delete root;
     delete recycleBin;
     delete ui;
+}
+
+void MainWindow::on_sortb_clicked() {
+    QMenu menu(this);
+    QAction* mode0 = menu.addAction("•");
+    QAction* mode1 = menu.addAction("••");
+    QAction* mode2 = menu.addAction(":");
+
+    connect(mode0, &QAction::triggered, this, [this]() {
+        currentViewMode = 0;
+        refreshUI();
+    });
+    connect(mode1, &QAction::triggered, this, [this]() {
+        currentViewMode = 1;
+        refreshUI();
+    });
+    connect(mode2, &QAction::triggered, this, [this]() {
+        currentViewMode = 2;
+        refreshUI();
+    });
+
+    menu.exec(QCursor::pos());
 }
 
 void MainWindow::customMenu(const QPoint &pos) {
@@ -239,6 +256,19 @@ void MainWindow::refreshUI() {
 
     ui->pathline->setText(calculateFullPath(currentDirectory));
 
+    if (currentViewMode == 2) {
+        ui->listView->setViewMode(QListView::IconMode);
+        ui->listView->setMovement(QListView::Static);
+        ui->listView->setResizeMode(QListView::Adjust);
+        ui->listView->setIconSize(QSize(64, 64));
+        ui->listView->setGridSize(QSize(100, 100));
+    } else {
+        ui->listView->setViewMode(QListView::ListMode);
+        ui->listView->setMovement(QListView::Static);
+        ui->listView->setIconSize(QSize(24, 24));
+        ui->listView->setGridSize(QSize());
+    }
+
     if (currentDirectory) {
         std::vector<OriginFile*> children = currentDirectory->getChildren();
         for (size_t i = 0; i < children.size(); i++) {
@@ -248,26 +278,35 @@ void MainWindow::refreshUI() {
             QStandardItem* listItem = new QStandardItem(item->getName());
             listItem->setData(QVariant::fromValue((void*)item));
 
+            if (currentViewMode > 0) {
+                if (item->getIsDirectory()) {
+                    listItem->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+                } else {
+                    listItem->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+                }
+            }
+
             if (item->getIsDirectory()) {
-                listItem->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
                 QFont font = listItem->font();
                 font.setBold(true);
                 listItem->setFont(font);
-            } else {
-                listItem->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
             }
             listModel->appendRow(listItem);
         }
     }
 
     QStandardItem* homeNode = new QStandardItem("Home");
-    homeNode->setIcon(style()->standardIcon(QStyle::SP_DirHomeIcon));
     homeNode->setData(QVariant::fromValue((void*)root));
-    treeModel->appendRow(homeNode);
 
     QStandardItem* binNode = new QStandardItem("Recycle Bin");
-    binNode->setIcon(style()->standardIcon(QStyle::SP_TrashIcon));
     binNode->setData(QVariant::fromValue((void*)recycleBin));
+
+    if (currentViewMode > 0) {
+        homeNode->setIcon(style()->standardIcon(QStyle::SP_DirHomeIcon));
+        binNode->setIcon(style()->standardIcon(QStyle::SP_TrashIcon));
+    }
+
+    treeModel->appendRow(homeNode);
     treeModel->appendRow(binNode);
 
     if (root) {
@@ -289,10 +328,12 @@ void MainWindow::fillFavorites(OriginFile* node, QStandardItem* parentItem) {
             QStandardItem* item = new QStandardItem(child->getName());
             item->setData(QVariant::fromValue((void*)child));
 
-            if (child->getIsDirectory()) {
-                item->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
-            } else {
-                item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+            if (currentViewMode > 0) {
+                if (child->getIsDirectory()) {
+                    item->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+                } else {
+                    item->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+                }
             }
 
             parentItem->appendRow(item);
@@ -476,13 +517,15 @@ void MainWindow::on_createb_clicked() {
 
 void MainWindow::on_deleteb_clicked() {
     QModelIndex index = ui->listView->currentIndex();
+    if (!index.isValid()) index = ui->treeView->currentIndex();
+
     if (!index.isValid()) {
         QMessageBox::warning(this, "Selection", "Please select an item first.");
         return;
     }
 
     OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
-    if (!item) return;
+    if (!item || item == root || item == recycleBin) return;
 
     if (currentDirectory == recycleBin) {
         recycleBin->removeChild(item);
@@ -519,7 +562,10 @@ void MainWindow::on_deleteb_clicked() {
         item->setName(newName);
         item->setOriginalPath(calculateFullPath(currentDirectory));
         item->setIsFavorite(false);
-        currentDirectory->detachChild(item);
+        if (item->getParent()) {
+            Directory* p = (Directory*)item->getParent();
+            p->detachChild(item);
+        }
         recycleBin->addChild(item);
         item->setInRecycleBin(true);
         item->setParent(recycleBin);
@@ -531,6 +577,8 @@ void MainWindow::on_deleteb_clicked() {
 
 void MainWindow::on_copyb_clicked() {
     QModelIndex index = ui->listView->currentIndex();
+    if (!index.isValid()) index = ui->treeView->currentIndex();
+
     if (!index.isValid()) {
         QMessageBox::warning(this, "Selection", "Please select an item first.");
         return;
@@ -549,6 +597,8 @@ void MainWindow::on_copyb_clicked() {
 
 void MainWindow::on_cutb_clicked() {
     QModelIndex index = ui->listView->currentIndex();
+    if (!index.isValid()) index = ui->treeView->currentIndex();
+
     if (!index.isValid()) {
         QMessageBox::warning(this, "Selection", "Please select an item first.");
         return;
@@ -653,13 +703,15 @@ void MainWindow::on_parentb_clicked() {
 
 void MainWindow::on_renameb_clicked() {
     QModelIndex index = ui->listView->currentIndex();
+    if (!index.isValid()) index = ui->treeView->currentIndex();
+
     if (!index.isValid()) {
         QMessageBox::warning(this, "Selection", "Please select an item first.");
         return;
     }
 
     OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
-    if (!item) return;
+    if (!item || item == root || item == recycleBin) return;
 
     bool ok;
     QString oldName = item->getName();
@@ -686,6 +738,54 @@ void MainWindow::on_renameb_clicked() {
             saveSystem();
             refreshUI();
         }
+    }
+}
+
+void MainWindow::on_detailsd_clicked() {
+    QModelIndex index = ui->listView->currentIndex();
+    if (!index.isValid()) index = ui->treeView->currentIndex();
+
+    if (!index.isValid()) {
+        QMessageBox::warning(this, "Selection", "Please select an item first.");
+        return;
+    }
+
+    OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+    if (!item || item == root || item == recycleBin) return;
+
+    if (item->getIsDirectory()) {
+        long totalSize = 0;
+        int fileCount = 0;
+
+        std::vector<Directory*> stack;
+        stack.push_back((Directory*)item);
+
+        while (!stack.empty()) {
+            Directory* current = stack.back();
+            stack.pop_back();
+
+            std::vector<OriginFile*> children = current->getChildren();
+            for (size_t i = 0; i < children.size(); i++) {
+                if (children[i]->getIsDirectory()) {
+                    stack.push_back((Directory*)children[i]);
+                } else {
+                    fileCount++;
+                    totalSize += ((File*)children[i])->getSize();
+                }
+            }
+        }
+
+        QString info = "Name: " + item->getName() + "\n";
+        info += "Files inside: " + QString::number(fileCount) + "\n";
+        info += "Total size: " + QString::number(totalSize) + " bytes";
+
+        QMessageBox::information(this, "Properties", info);
+    } else {
+        File* fileItem = (File*)item;
+        QString info = "Name: " + fileItem->getName() + "\n";
+        info += "Size: " + QString::number(fileItem->getSize()) + " bytes";
+
+        QMessageBox::information(this, "Properties", info);
     }
 }
 
