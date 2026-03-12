@@ -24,7 +24,9 @@ public:
     void setName(QString n);
 
     bool getIsDirectory();
-
+    QDateTime getCreated();
+    QDateTime getModified();
+    void setModified(QDateTime date);
     bool getIsFavorite();
     void setIsFavorite(bool val);
 

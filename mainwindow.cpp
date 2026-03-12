@@ -637,6 +637,7 @@ void MainWindow::on_createb_clicked() {
             }
         }
     }
+    currentDirectory->setModified(QDateTime::currentDateTime());
 }
 
 void MainWindow::on_deleteb_clicked() {
@@ -684,6 +685,7 @@ void MainWindow::on_deleteb_clicked() {
         }
 
         item->setName(newName);
+        currentDirectory->setModified(QDateTime::currentDateTime());
         item->setOriginalPath(calculateFullPath(currentDirectory));
         item->setIsFavorite(false);
         if (item->getParent()) {
@@ -800,6 +802,7 @@ void MainWindow::on_pasteb_clicked() {
 
     saveSystem();
     refreshUI();
+    currentDirectory->setModified(QDateTime::currentDateTime());
 }
 
 void MainWindow::on_backwardb_clicked() {
@@ -859,6 +862,7 @@ void MainWindow::on_renameb_clicked() {
             QMessageBox::warning(this, "Error", "A file or folder with this name already exists.");
         } else {
             item->setName(newName);
+                item->setModified(QDateTime::currentDateTime());
             saveSystem();
             refreshUI();
         }
@@ -876,6 +880,10 @@ void MainWindow::on_detailsd_clicked() {
 
     OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (!item || item == root || item == recycleBin) return;
+
+    QString tipo = item->getIsDirectory() ? "Carpeta" : "Archivo";
+    QString fechaCreacion = item->getCreated().toString("dd/MM/yyyy hh:mm:ss");
+    QString fechaModificacion = item->getModified().toString("dd/MM/yyyy hh:mm:ss");
 
     if (item->getIsDirectory()) {
         long totalSize = 0;
@@ -900,14 +908,21 @@ void MainWindow::on_detailsd_clicked() {
         }
 
         QString info = "Name: " + item->getName() + "\n";
+        info += "Type: " + tipo + "\n";
         info += "Files inside: " + QString::number(fileCount) + "\n";
-        info += "Total size: " + QString::number(totalSize) + " bytes";
+        info += "Total size: " + QString::number(totalSize) + " bytes\n";
+        info += "Created: " + fechaCreacion + "\n";
+        info += "Modified: " + fechaModificacion;
 
         QMessageBox::information(this, "Properties", info);
     } else {
         File* fileItem = (File*)item;
+
         QString info = "Name: " + fileItem->getName() + "\n";
-        info += "Size: " + QString::number(fileItem->getSize()) + " bytes";
+        info += "Type: " + tipo + "\n";
+        info += "Size: " + QString::number(fileItem->getSize()) + " bytes\n";
+        info += "Created: " + fechaCreacion + "\n";
+        info += "Modified: " + fechaModificacion;
 
         QMessageBox::information(this, "Properties", info);
     }

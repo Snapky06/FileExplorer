@@ -19,6 +19,7 @@ Notepad::~Notepad() {
 void Notepad::on_saveB_clicked() {
     if (currentFile) {
         currentFile->setContent(ui->text->toPlainText());
+        currentFile->setModified(QDateTime::currentDateTime());
         QMessageBox::information(this, "Success", "File saved successfully.");
     }
 }

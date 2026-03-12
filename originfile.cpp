@@ -55,6 +55,18 @@ OriginFile* OriginFile::getParent() {
     return parent;
 }
 
+QDateTime OriginFile::getCreated() {
+    return created;
+}
+
+QDateTime OriginFile::getModified() {
+    return modified;
+}
+
+void OriginFile::setModified(QDateTime date) {
+    modified = date;
+}
+
 void OriginFile::setParent(OriginFile* p) {
     parent = p;
 }
