@@ -14,6 +14,9 @@
 #include <QCoreApplication>
 #include <QAbstractItemView>
 #include <QCursor>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow) {
     ui->setupUi(this);
@@ -57,6 +60,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->treeView->addAction(ui->actiondelete);
     ui->treeView->addAction(ui->actionrename);
 
+    ui->listView->setDragEnabled(true);
+    ui->listView->setAcceptDrops(true);
+    ui->listView->setDropIndicatorShown(true);
+    ui->listView->setDragDropMode(QAbstractItemView::DragDrop);
+    ui->listView->setDefaultDropAction(Qt::MoveAction);
+    ui->listView->viewport()->installEventFilter(this);
+
+    ui->treeView->setDragEnabled(false);
+    ui->treeView->setAcceptDrops(false);
+
     root = nullptr;
     recycleBin = nullptr;
     clipboard = nullptr;
@@ -88,6 +101,108 @@ MainWindow::~MainWindow() {
     delete ui;
 }
 
+bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == ui->listView->viewport() && event->type() == QEvent::Drop) {
+        QDropEvent *dropEvent = static_cast<QDropEvent*>(event);
+
+        QModelIndex targetIndex = ui->listView->indexAt(dropEvent->position().toPoint());
+        QModelIndexList selected = ui->listView->selectionModel()->selectedIndexes();
+
+        if (selected.isEmpty()) {
+            return QMainWindow::eventFilter(watched, event);
+        }
+
+        QModelIndex sourceIndex = selected.first();
+        if (!sourceIndex.isValid() || sourceIndex == targetIndex) {
+            dropEvent->setDropAction(Qt::IgnoreAction);
+            dropEvent->accept();
+            return true;
+        }
+
+        OriginFile* draggedItem = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(sourceIndex.data(Qt::UserRole + 1).toULongLong()));
+        if (!draggedItem || draggedItem == root || draggedItem == recycleBin) {
+            dropEvent->setDropAction(Qt::IgnoreAction);
+            dropEvent->accept();
+            return true;
+        }
+
+        Directory* targetDir = currentDirectory;
+
+        if (targetIndex.isValid()) {
+            OriginFile* targetItem = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(targetIndex.data(Qt::UserRole + 1).toULongLong()));
+            if (targetItem && targetItem->getIsDirectory()) {
+                targetDir = (Directory*)targetItem;
+            } else {
+                dropEvent->setDropAction(Qt::IgnoreAction);
+                dropEvent->accept();
+                return true;
+            }
+        } else {
+            dropEvent->setDropAction(Qt::IgnoreAction);
+            dropEvent->accept();
+            return true;
+        }
+
+        if (targetDir && targetDir != currentDirectory && targetDir != draggedItem) {
+            if (draggedItem->getIsDirectory()) {
+                OriginFile* temp = targetDir;
+                while (temp != nullptr) {
+                    if (temp == draggedItem) {
+                        dropEvent->setDropAction(Qt::IgnoreAction);
+                        dropEvent->accept();
+                        return true;
+                    }
+                    temp = temp->getParent();
+                }
+            }
+
+            QString baseName = draggedItem->getName();
+            QString ext = "";
+            if (!draggedItem->getIsDirectory() && baseName.endsWith(".txt")) {
+                ext = ".txt";
+                baseName = baseName.left(baseName.length() - 4);
+            }
+
+            QString newName = draggedItem->getName();
+            int counter = 1;
+            bool duplicate = true;
+
+            while (duplicate) {
+                duplicate = false;
+                std::vector<OriginFile*> children = targetDir->getChildren();
+                for (size_t i = 0; i < children.size(); i++) {
+                    if (children[i]->getName() == newName) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+                if (duplicate) {
+                    newName = baseName + " (" + QString::number(counter) + ")" + ext;
+                    counter++;
+                }
+            }
+
+            draggedItem->setName(newName);
+
+            if (draggedItem->getParent()) {
+                Directory* oldParent = (Directory*)draggedItem->getParent();
+                oldParent->detachChild(draggedItem);
+            }
+
+            targetDir->addChild(draggedItem);
+            draggedItem->setParent(targetDir);
+
+            saveSystem();
+            refreshUI();
+        }
+
+        dropEvent->setDropAction(Qt::IgnoreAction);
+        dropEvent->accept();
+        return true;
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
 void MainWindow::on_sortb_clicked() {
     QMenu menu(this);
     QAction* mode0 = menu.addAction("•");
@@ -117,7 +232,7 @@ void MainWindow::customMenu(const QPoint &pos) {
     ui->listView->setCurrentIndex(index);
     ui->treeView->clearSelection();
 
-    OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+    OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (!item) return;
 
     QMenu menu(this);
@@ -258,13 +373,13 @@ void MainWindow::refreshUI() {
 
     if (currentViewMode == 2) {
         ui->listView->setViewMode(QListView::IconMode);
-        ui->listView->setMovement(QListView::Static);
+        ui->listView->setMovement(QListView::Free);
         ui->listView->setResizeMode(QListView::Adjust);
         ui->listView->setIconSize(QSize(64, 64));
         ui->listView->setGridSize(QSize(100, 100));
     } else {
         ui->listView->setViewMode(QListView::ListMode);
-        ui->listView->setMovement(QListView::Static);
+        ui->listView->setMovement(QListView::Free);
         ui->listView->setIconSize(QSize(24, 24));
         ui->listView->setGridSize(QSize());
     }
@@ -276,7 +391,13 @@ void MainWindow::refreshUI() {
             if (!item) continue;
 
             QStandardItem* listItem = new QStandardItem(item->getName());
-            listItem->setData(QVariant::fromValue((void*)item));
+            listItem->setData(static_cast<qulonglong>(reinterpret_cast<uintptr_t>(item)), Qt::UserRole + 1);
+
+            if (item->getIsDirectory()) {
+                listItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+            } else {
+                listItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsDragEnabled);
+            }
 
             if (currentViewMode > 0) {
                 if (item->getIsDirectory()) {
@@ -296,10 +417,12 @@ void MainWindow::refreshUI() {
     }
 
     QStandardItem* homeNode = new QStandardItem("Home");
-    homeNode->setData(QVariant::fromValue((void*)root));
+    homeNode->setData(static_cast<qulonglong>(reinterpret_cast<uintptr_t>(root)), Qt::UserRole + 1);
+    homeNode->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
 
     QStandardItem* binNode = new QStandardItem("Recycle Bin");
-    binNode->setData(QVariant::fromValue((void*)recycleBin));
+    binNode->setData(static_cast<qulonglong>(reinterpret_cast<uintptr_t>(recycleBin)), Qt::UserRole + 1);
+    binNode->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
 
     if (currentViewMode > 0) {
         homeNode->setIcon(style()->standardIcon(QStyle::SP_DirHomeIcon));
@@ -326,7 +449,8 @@ void MainWindow::fillFavorites(OriginFile* node, QStandardItem* parentItem) {
 
         if (child->getIsFavorite() && !child->getInRecycleBin()) {
             QStandardItem* item = new QStandardItem(child->getName());
-            item->setData(QVariant::fromValue((void*)child));
+            item->setData(static_cast<qulonglong>(reinterpret_cast<uintptr_t>(child)), Qt::UserRole + 1);
+            item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
 
             if (currentViewMode > 0) {
                 if (child->getIsDirectory()) {
@@ -357,7 +481,7 @@ QString MainWindow::calculateFullPath(OriginFile* node) {
 }
 
 void MainWindow::on_listView_doubleClicked(const QModelIndex &index) {
-    OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+    OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (item != nullptr) {
         if (item->getIsDirectory()) {
             currentDirectory = (Directory*)item;
@@ -371,7 +495,7 @@ void MainWindow::on_listView_doubleClicked(const QModelIndex &index) {
 }
 
 void MainWindow::on_treeView_doubleClicked(const QModelIndex &index) {
-    OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+    OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (item != nullptr) {
         if (item->getIsDirectory()) {
             currentDirectory = (Directory*)item;
@@ -524,7 +648,7 @@ void MainWindow::on_deleteb_clicked() {
         return;
     }
 
-    OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+    OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (!item || item == root || item == recycleBin) return;
 
     if (currentDirectory == recycleBin) {
@@ -584,7 +708,7 @@ void MainWindow::on_copyb_clicked() {
         return;
     }
 
-    OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+    OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (!item || item == recycleBin || item == root) return;
 
     if (isCutOperation && clipboard) {
@@ -604,7 +728,7 @@ void MainWindow::on_cutb_clicked() {
         return;
     }
 
-    OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+    OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (!item || item == recycleBin || item == root) return;
 
     if (isCutOperation && clipboard) {
@@ -710,7 +834,7 @@ void MainWindow::on_renameb_clicked() {
         return;
     }
 
-    OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+    OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (!item || item == root || item == recycleBin) return;
 
     bool ok;
@@ -750,7 +874,7 @@ void MainWindow::on_detailsd_clicked() {
         return;
     }
 
-    OriginFile* item = (OriginFile*)index.data(Qt::UserRole + 1).value<void*>();
+    OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (!item || item == root || item == recycleBin) return;
 
     if (item->getIsDirectory()) {

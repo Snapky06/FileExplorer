@@ -18,6 +18,9 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private slots:
     void on_listView_doubleClicked(const QModelIndex &index);
     void on_treeView_doubleClicked(const QModelIndex &index);
