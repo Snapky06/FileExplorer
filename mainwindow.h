@@ -35,6 +35,7 @@ private slots:
     void on_renameb_clicked();
     void on_sortb_clicked();
     void on_detailsd_clicked();
+    void on_enterb_clicked();
     void customMenu(const QPoint &pos);
 
     void on_actionpaste_triggered();
@@ -65,6 +66,7 @@ private:
     void saveSystem();
     void loadSystem();
     OriginFile* cloneNode(OriginFile* node, Directory* parent);
+    void searchByName(Directory* node, const QString& query, QList<OriginFile*>& results);
 };
 
 #endif // MAINWINDOW_H

@@ -54,6 +54,13 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QPushButton" name="enterb">
+        <property name="text">
+         <string>Enter</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </item>
     <item>

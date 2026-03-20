@@ -18,6 +18,7 @@ public:
     OriginFile* goForward();
     bool canGoBack();
     bool canGoForward();
+    void purgeSubtree(OriginFile* subtreeRoot);
 };
 
 #endif // NAVIGATIONHISTORY_H

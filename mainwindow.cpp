@@ -11,6 +11,8 @@
 #include <QStyle>
 #include <QMenu>
 #include <QAction>
+#include <QLabel>
+#include <QListWidget>
 #include <QCoreApplication>
 #include <QAbstractItemView>
 #include <QCursor>
@@ -653,11 +655,38 @@ void MainWindow::on_deleteb_clicked() {
     if (!item || item == root || item == recycleBin) return;
 
     if (currentDirectory == recycleBin) {
+        // Permanent delete: purge history first, then free memory
+        history.purgeSubtree(item);
+
+        // If currentDirectory somehow got swept up, reset to root
+        OriginFile* temp = currentDirectory;
+        bool currentInvalid = false;
+        while (temp != nullptr) {
+            if (temp == item) { currentInvalid = true; break; }
+            temp = temp->getParent();
+        }
+        if (currentInvalid) currentDirectory = (Directory*)root;
+
         recycleBin->removeChild(item);
         if (!isCutOperation && clipboard == item) {
             clipboard = nullptr;
         }
     } else {
+        // Move to recycle bin: purge history entries pointing inside this subtree
+        history.purgeSubtree(item);
+
+        // If we are currently inside the item being deleted, escape to its parent
+        OriginFile* temp = currentDirectory;
+        while (temp != nullptr) {
+            if (temp == item) {
+                // Navigate to the item's parent (which is currentDirectory or above)
+                currentDirectory = item->getParent() ? (Directory*)item->getParent() : (Directory*)root;
+                history.addVisit(currentDirectory);
+                break;
+            }
+            temp = temp->getParent();
+        }
+
         QString baseName = item->getName();
         QString ext = "";
         if (!item->getIsDirectory() && baseName.endsWith(".txt")) {
@@ -807,7 +836,7 @@ void MainWindow::on_pasteb_clicked() {
 
 void MainWindow::on_backwardb_clicked() {
     OriginFile* prev = history.goBack();
-    if (prev != nullptr) {
+    if (prev != nullptr && prev->getIsDirectory()) {
         currentDirectory = (Directory*)prev;
         refreshUI();
     }
@@ -815,15 +844,16 @@ void MainWindow::on_backwardb_clicked() {
 
 void MainWindow::on_forwardb_clicked() {
     OriginFile* next = history.goForward();
-    if (next != nullptr) {
+    if (next != nullptr && next->getIsDirectory()) {
         currentDirectory = (Directory*)next;
         refreshUI();
     }
 }
 
 void MainWindow::on_parentb_clicked() {
-    if (currentDirectory && currentDirectory->getParent()) {
+    if (currentDirectory && currentDirectory->getParent() && currentDirectory->getParent()->getIsDirectory()) {
         currentDirectory = (Directory*)currentDirectory->getParent();
+        history.addVisit(currentDirectory);
         refreshUI();
     }
 }
@@ -862,7 +892,7 @@ void MainWindow::on_renameb_clicked() {
             QMessageBox::warning(this, "Error", "A file or folder with this name already exists.");
         } else {
             item->setName(newName);
-                item->setModified(QDateTime::currentDateTime());
+            item->setModified(QDateTime::currentDateTime());
             saveSystem();
             refreshUI();
         }
@@ -946,4 +976,146 @@ void MainWindow::on_actionrename_triggered() {
 
 void MainWindow::on_actiondelete_triggered() {
     on_deleteb_clicked();
+}
+
+void MainWindow::searchByName(Directory* node, const QString& query, QList<OriginFile*>& results) {
+    if (!node) return;
+
+    std::vector<OriginFile*> children = node->getChildren();
+    for (size_t i = 0; i < children.size(); i++) {
+        OriginFile* child = children[i];
+        if (!child || child->getInRecycleBin()) continue;
+
+        if (child->getName().contains(query, Qt::CaseInsensitive)) {
+            results.append(child);
+        }
+
+        if (child->getIsDirectory()) {
+            searchByName((Directory*)child, query, results);
+        }
+    }
+}
+
+void MainWindow::on_enterb_clicked() {
+    QString input = ui->pathline->text().trimmed();
+    if (input.isEmpty()) return;
+
+    // --- 1. Try exact path navigation (e.g. "/folder/subfolder") ---
+    QStringList parts = input.split("/", Qt::SkipEmptyParts);
+    Directory* target = (Directory*)root;
+    bool exactMatch = true;
+
+    for (int i = 0; i < parts.size(); i++) {
+        bool found = false;
+        std::vector<OriginFile*> children = target->getChildren();
+        for (size_t j = 0; j < children.size(); j++) {
+            if (children[j]->getName() == parts[i] && children[j]->getIsDirectory()) {
+                target = (Directory*)children[j];
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            exactMatch = false;
+            break;
+        }
+    }
+
+    if (exactMatch && (target != (Directory*)root || input == "/" || input == "\\")) {
+        currentDirectory = target;
+        history.addVisit(currentDirectory);
+        refreshUI();
+        return;
+    }
+
+    // --- 2. Recursive search by name across the whole tree ---
+    // Use only the last segment of the typed path as the search query
+    QString query = parts.isEmpty() ? input : parts.last();
+
+    QList<OriginFile*> results;
+    searchByName((Directory*)root, query, results);
+
+    if (results.isEmpty()) {
+        QMessageBox::information(this, "Search", "No files or folders matching \"" + query + "\" were found.");
+        return;
+    }
+
+    if (results.size() == 1) {
+        OriginFile* match = results.first();
+        if (match->getIsDirectory()) {
+            currentDirectory = (Directory*)match;
+            history.addVisit(currentDirectory);
+        } else {
+            if (match->getParent() && match->getParent()->getIsDirectory()) {
+                currentDirectory = (Directory*)match->getParent();
+                history.addVisit(currentDirectory);
+            }
+        }
+        refreshUI();
+        return;
+    }
+
+    // --- 3. Multiple matches: show a selection dialog ---
+    QDialog dialog(this);
+    dialog.setWindowTitle("Search Results for \"" + query + "\"");
+    dialog.setMinimumSize(380, 280);
+
+    QVBoxLayout* layout = new QVBoxLayout(&dialog);
+
+    QLabel* label = new QLabel("Multiple matches found. Select one to navigate to it:", &dialog);
+    layout->addWidget(label);
+
+    QListWidget* listWidget = new QListWidget(&dialog);
+    listWidget->setIconSize(QSize(20, 20));
+
+    for (int i = 0; i < results.size(); i++) {
+        OriginFile* item = results[i];
+        QString fullPath = calculateFullPath(item);
+        QListWidgetItem* listItem = new QListWidgetItem(listWidget);
+        listItem->setText(item->getName() + "   \u2192  " + fullPath);
+        if (item->getIsDirectory()) {
+            listItem->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
+        } else {
+            listItem->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
+        }
+        listItem->setData(Qt::UserRole, static_cast<qulonglong>(reinterpret_cast<uintptr_t>(item)));
+    }
+
+    layout->addWidget(listWidget);
+
+    QHBoxLayout* btnLayout = new QHBoxLayout();
+    QPushButton* goBtn = new QPushButton("Go", &dialog);
+    goBtn->setDefault(true);
+    QPushButton* cancelBtn = new QPushButton("Cancel", &dialog);
+    btnLayout->addStretch();
+    btnLayout->addWidget(goBtn);
+    btnLayout->addWidget(cancelBtn);
+    layout->addLayout(btnLayout);
+
+    connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
+    connect(goBtn, &QPushButton::clicked, &dialog, [&]() {
+        if (listWidget->currentItem()) dialog.accept();
+    });
+    connect(listWidget, &QListWidget::itemDoubleClicked, &dialog, [&](QListWidgetItem*) {
+        dialog.accept();
+    });
+
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    QListWidgetItem* selected = listWidget->currentItem();
+    if (!selected) return;
+
+    OriginFile* match = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(selected->data(Qt::UserRole).toULongLong()));
+    if (!match) return;
+
+    if (match->getIsDirectory()) {
+        currentDirectory = (Directory*)match;
+        history.addVisit(currentDirectory);
+    } else {
+        if (match->getParent() && match->getParent()->getIsDirectory()) {
+            currentDirectory = (Directory*)match->getParent();
+            history.addVisit(currentDirectory);
+        }
+    }
+    refreshUI();
 }

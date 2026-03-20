@@ -63,3 +63,46 @@ bool NavigationHistory::canGoBack() {
 bool NavigationHistory::canGoForward() {
     return (current != nullptr && current->next != nullptr);
 }
+
+
+void NavigationHistory::purgeSubtree(OriginFile* subtreeRoot) {
+    if (!subtreeRoot) return;
+
+    HistoryNode* node = head;
+    while (node != nullptr) {
+        HistoryNode* next = node->next;
+
+
+        bool shouldRemove = false;
+        OriginFile* temp = node->directory;
+        while (temp != nullptr) {
+            if (temp == subtreeRoot) {
+                shouldRemove = true;
+                break;
+            }
+            temp = temp->getParent();
+        }
+
+        if (shouldRemove) {
+
+            if (node->prev) node->prev->next = node->next;
+            else head = node->next;
+
+            if (node->next) node->next->prev = node->prev;
+            else tail = node->prev;
+
+            if (node == current) {
+                current = node->prev ? node->prev : node->next;
+            }
+
+            delete node;
+        }
+
+        node = next;
+    }
+
+    if (head == nullptr) {
+        tail = nullptr;
+        current = nullptr;
+    }
+}

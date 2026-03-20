@@ -31,6 +31,10 @@ bool OriginFile::getIsFavorite() {
     return isFavorite;
 }
 
+QDateTime OriginFile::getCreated() {
+    return created;
+}
+
 void OriginFile::setIsFavorite(bool val) {
     isFavorite = val;
 }
@@ -55,9 +59,6 @@ OriginFile* OriginFile::getParent() {
     return parent;
 }
 
-QDateTime OriginFile::getCreated() {
-    return created;
-}
 
 QDateTime OriginFile::getModified() {
     return modified;
