@@ -67,8 +67,6 @@ private:
     void saveSystem();
     void loadSystem();
     OriginFile* cloneNode(OriginFile* node, Directory* parent);
-    void searchByName(Directory* node, const QString& query, std::vector<OriginFile*>& results);
-    void sendToRecycleBin(OriginFile* item);
 };
 
 #endif // MAINWINDOW_H

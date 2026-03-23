@@ -759,13 +759,9 @@ void MainWindow::on_copyb_clicked() {
     OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (!item || item == recycleBin || item == root) return;
 
-    if (isCutOperation && clipboard) {
-        sendToRecycleBin(clipboard);
-        saveSystem();
-    }
-
     clipboard = item;
     isCutOperation = false;
+    refreshUI();
 }
 
 void MainWindow::on_cutb_clicked() {
@@ -779,12 +775,6 @@ void MainWindow::on_cutb_clicked() {
 
     OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (!item || item == recycleBin || item == root) return;
-
-    if (isCutOperation && clipboard && clipboard != item) {
-        sendToRecycleBin(clipboard);
-        saveSystem();
-        refreshUI();
-    }
 
     clipboard = item;
     isCutOperation = true;
@@ -1019,42 +1009,6 @@ void MainWindow::on_actiondelete_triggered() {
     on_deleteb_clicked();
 }
 
-void MainWindow::sendToRecycleBin(OriginFile* item) {
-    if (!item) return;
-
-    QString baseName = item->getName();
-    QString ext = "";
-    if (!item->getIsDirectory() && baseName.endsWith(".txt")) {
-        ext = ".txt";
-        baseName = baseName.left(baseName.length() - 4);
-    }
-
-    QString newName = item->getName();
-    int counter = 1;
-    bool duplicate = true;
-
-    while (duplicate) {
-        duplicate = false;
-        std::vector<OriginFile*> children = recycleBin->getChildren();
-        for (size_t i = 0; i < children.size(); i++) {
-            if (children[i]->getName() == newName) {
-                duplicate = true;
-                break;
-            }
-        }
-        if (duplicate) {
-            newName = baseName + " (" + QString::number(counter) + ")" + ext;
-            counter++;
-        }
-    }
-
-    item->setName(newName);
-    item->setOriginalPath(calculateFullPath(item->getParent() ? item->getParent() : root));
-    if (item->getParent()) ((Directory*)item->getParent())->detachChild(item);
-    recycleBin->addChild(item);
-    item->setInRecycleBin(true);
-    item->setParent(recycleBin);
-}
 
 void MainWindow::on_enterb_clicked() {
     QString input = ui->pathline->text().trimmed();
