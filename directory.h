@@ -19,6 +19,7 @@ public:
     int getChildCount();
     OriginFile* getChild(int index);
     std::vector<OriginFile*> getChildren();
+    void search(const QString& name, std::vector<OriginFile*>& results);
     long getSize() override;
     void write(QDataStream &out) override;
     void read(QDataStream &in) override;

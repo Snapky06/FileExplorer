@@ -53,6 +53,20 @@ std::vector<OriginFile*> Directory::getChildren() {
     return children;
 }
 
+
+void Directory::search(const QString& name, std::vector<OriginFile*>& results) {
+    for (int i = 0; i < (int)children.size(); i++) {
+        OriginFile* child = children[i];
+        if (!child || child->getInRecycleBin()) continue;
+        if (child->getName().contains(name, Qt::CaseInsensitive)) {
+            results.push_back(child);
+        }
+        if (child->getIsDirectory()) {
+            ((Directory*)child)->search(name, results);
+        }
+    }
+}
+
 long Directory::getSize() {
     long total = 0;
     for (int i = 0; i < (int)children.size(); i++) {

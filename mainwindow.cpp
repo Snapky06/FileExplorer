@@ -673,10 +673,10 @@ void MainWindow::on_deleteb_clicked() {
     if (!item || item == root || item == recycleBin) return;
 
     if (currentDirectory == recycleBin) {
-        // Permanent delete: purge history first, then free memory
+
         history.purgeSubtree(item);
 
-        // If currentDirectory somehow got swept up, reset to root
+
         OriginFile* temp = currentDirectory;
         bool currentInvalid = false;
         while (temp != nullptr) {
@@ -690,14 +690,12 @@ void MainWindow::on_deleteb_clicked() {
             clipboard = nullptr;
         }
     } else {
-        // Move to recycle bin: purge history entries pointing inside this subtree
         history.purgeSubtree(item);
 
-        // If we are currently inside the item being deleted, escape to its parent
         OriginFile* temp = currentDirectory;
         while (temp != nullptr) {
             if (temp == item) {
-                // Navigate to the item's parent (which is currentDirectory or above)
+
                 currentDirectory = item->getParent() ? (Directory*)item->getParent() : (Directory*)root;
                 history.addVisit(currentDirectory);
                 break;
@@ -1055,24 +1053,6 @@ void MainWindow::sendToRecycleBin(OriginFile* item) {
     item->setParent(recycleBin);
 }
 
-void MainWindow::searchByName(Directory* node, const QString& query, std::vector<OriginFile*>& results) {
-    if (!node) return;
-
-    std::vector<OriginFile*> children = node->getChildren();
-    for (size_t i = 0; i < children.size(); i++) {
-        OriginFile* child = children[i];
-        if (!child || child->getInRecycleBin()) continue;
-
-        if (child->getName().contains(query, Qt::CaseInsensitive)) {
-            results.push_back(child);
-        }
-
-        if (child->getIsDirectory()) {
-            searchByName((Directory*)child, query, results);
-        }
-    }
-}
-
 void MainWindow::on_enterb_clicked() {
     QString input = ui->pathline->text().trimmed();
     if (input.isEmpty()) return;
@@ -1103,15 +1083,15 @@ void MainWindow::on_enterb_clicked() {
 }
 
 void MainWindow::on_search_returnPressed() {
-    QString query = ui->search->text().trimmed();
-    if (query.isEmpty()) return;
+    QString name = ui->search->text().trimmed();
+    if (name.isEmpty()) return;
     ui->search->clear();
 
     std::vector<OriginFile*> results;
-    searchByName(currentDirectory, query, results);
+    currentDirectory->search(name, results);
 
     if (results.empty()) {
-        QMessageBox::information(this, "Search", "No files or folders matching \"" + query + "\" were found.");
+        QMessageBox::information(this, "Search", "No files or folders matching \"" + name + "\" were found.");
         return;
     }
 
@@ -1128,7 +1108,7 @@ void MainWindow::on_search_returnPressed() {
     }
 
     QDialog dialog(this);
-    dialog.setWindowTitle("Search Results for \"" + query + "\"");
+    dialog.setWindowTitle("Search Results for \"" + name + "\"");
     dialog.setMinimumSize(380, 280);
 
     QVBoxLayout* layout = new QVBoxLayout(&dialog);
