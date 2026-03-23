@@ -25,7 +25,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     listModel = new QStandardItemModel(this);
     QStringList headers;
-    headers << "Name";
+    headers << "";
     listModel->setHorizontalHeaderLabels(headers);
     ui->listView->setModel(listModel);
 
@@ -68,6 +68,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->listView->setDragDropMode(QAbstractItemView::DragDrop);
     ui->listView->setDefaultDropAction(Qt::MoveAction);
     ui->listView->viewport()->installEventFilter(this);
+    ui->parentb->installEventFilter(this);
 
     ui->treeView->setDragEnabled(false);
     ui->treeView->setAcceptDrops(false);
@@ -104,6 +105,29 @@ MainWindow::~MainWindow() {
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == ui->parentb && event->type() == QEvent::DragEnter) {
+        static_cast<QDragEnterEvent*>(event)->acceptProposedAction();
+        return true;
+    }
+
+    if (watched == ui->parentb && event->type() == QEvent::Drop) {
+        QModelIndexList selected = ui->listView->selectionModel()->selectedIndexes();
+        if (!selected.isEmpty()) {
+            QModelIndex sourceIndex = selected.first();
+            OriginFile* draggedItem = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(sourceIndex.data(Qt::UserRole + 1).toULongLong()));
+            if (draggedItem && draggedItem != root && draggedItem != recycleBin && currentDirectory->getParent()) {
+                Directory* targetDir = (Directory*)currentDirectory->getParent();
+                if (draggedItem->getParent()) ((Directory*)draggedItem->getParent())->detachChild(draggedItem);
+                targetDir->addChild(draggedItem);
+                draggedItem->setParent(targetDir);
+                saveSystem();
+                refreshUI();
+            }
+        }
+        static_cast<QDropEvent*>(event)->accept();
+        return true;
+    }
+
     if (watched == ui->listView->viewport() && event->type() == QEvent::Drop) {
         QDropEvent *dropEvent = static_cast<QDropEvent*>(event);
 
@@ -207,9 +231,9 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
 
 void MainWindow::on_sortb_clicked() {
     QMenu menu(this);
-    QAction* mode0 = menu.addAction("•");
-    QAction* mode1 = menu.addAction("••");
-    QAction* mode2 = menu.addAction(":");
+    QAction* mode0 = menu.addAction(style()->standardIcon(QStyle::SP_FileDialogDetailedView), "List");
+    QAction* mode1 = menu.addAction(style()->standardIcon(QStyle::SP_FileDialogListView), "List with icons");
+    QAction* mode2 = menu.addAction(style()->standardIcon(QStyle::SP_FileDialogContentsView), "Icons");
 
     connect(mode0, &QAction::triggered, this, [this]() {
         currentViewMode = 0;
@@ -367,7 +391,7 @@ void MainWindow::refreshUI() {
     treeModel->clear();
 
     QStringList headers;
-    headers << "Name";
+    headers << "";
     treeModel->setHorizontalHeaderLabels(headers);
     listModel->setHorizontalHeaderLabels(headers);
 
@@ -541,28 +565,19 @@ void MainWindow::loadSystem() {
 OriginFile* MainWindow::cloneNode(OriginFile* node, Directory* parent) {
     if (!node) return nullptr;
 
-    QByteArray buffer;
-    QDataStream out(&buffer, QIODevice::WriteOnly);
-
     if (node->getIsDirectory()) {
-        ((Directory*)node)->write(out);
+        Directory* copy = new Directory(node->getName(), parent);
+        std::vector<OriginFile*> children = ((Directory*)node)->getChildren();
+        for (int i = 0; i < (int)children.size(); i++) {
+            OriginFile* childCopy = cloneNode(children[i], copy);
+            if (childCopy) copy->addChild(childCopy);
+        }
+        return copy;
     } else {
-        ((File*)node)->write(out);
+        File* copy = new File(node->getName(), parent);
+        copy->setContent(((File*)node)->getContent());
+        return copy;
     }
-
-    QDataStream in(&buffer, QIODevice::ReadOnly);
-    OriginFile* clone = nullptr;
-
-    if (node->getIsDirectory()) {
-        clone = new Directory("", parent);
-        ((Directory*)clone)->read(in);
-    } else {
-        clone = new File("", parent);
-        ((File*)clone)->read(in);
-    }
-    clone->setParent(parent);
-
-    return clone;
 }
 
 void MainWindow::on_createb_clicked() {
@@ -596,22 +611,31 @@ void MainWindow::on_createb_clicked() {
         bool ok;
         QString name = QInputDialog::getText(this, "New Directory", "Name:", QLineEdit::Normal, "", &ok);
         if (ok && !name.isEmpty()) {
-            bool duplicate = false;
-            std::vector<OriginFile*> children = currentDirectory->getChildren();
-            for (size_t i = 0; i < children.size(); i++) {
-                if (children[i]->getName() == name) {
-                    duplicate = true;
-                    break;
-                }
-            }
-
-            if (duplicate) {
-                QMessageBox::warning(this, "Error", "A folder with this name already exists.");
+            if (name.trimmed().isEmpty()) {
+                QMessageBox::warning(this, "Error", "The folder name cannot contain only spaces.");
+            } else if (name == "." || name == "..") {
+                QMessageBox::warning(this, "Error", "The folder name '.' and '..' are not allowed.");
+            } else if (name.contains('/') || name.contains('*') || name.contains('?') || name.contains('<') || name.contains('>') || name.contains('|')) {
+                QMessageBox::warning(this, "Error", "The folder name contains invalid characters.");
             } else {
-                Directory* newDir = new Directory(name, currentDirectory);
-                currentDirectory->addChild(newDir);
-                saveSystem();
-                refreshUI();
+                if (name.endsWith(".txt")) name = name.left(name.length() - 4);
+                bool duplicate = false;
+                std::vector<OriginFile*> children = currentDirectory->getChildren();
+                for (size_t i = 0; i < children.size(); i++) {
+                    if (children[i]->getName() == name) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+
+                if (duplicate) {
+                    QMessageBox::warning(this, "Error", "A folder with this name already exists.");
+                } else {
+                    Directory* newDir = new Directory(name, currentDirectory);
+                    currentDirectory->addChild(newDir);
+                    saveSystem();
+                    refreshUI();
+                }
             }
         }
     } else if (choice == 2) {
@@ -655,10 +679,9 @@ void MainWindow::on_deleteb_clicked() {
     if (!item || item == root || item == recycleBin) return;
 
     if (currentDirectory == recycleBin) {
-        // Permanent delete: purge history first, then free memory
         history.purgeSubtree(item);
 
-        // If currentDirectory somehow got swept up, reset to root
+
         OriginFile* temp = currentDirectory;
         bool currentInvalid = false;
         while (temp != nullptr) {
@@ -672,14 +695,12 @@ void MainWindow::on_deleteb_clicked() {
             clipboard = nullptr;
         }
     } else {
-        // Move to recycle bin: purge history entries pointing inside this subtree
+
         history.purgeSubtree(item);
 
-        // If we are currently inside the item being deleted, escape to its parent
         OriginFile* temp = currentDirectory;
         while (temp != nullptr) {
             if (temp == item) {
-                // Navigate to the item's parent (which is currentDirectory or above)
                 currentDirectory = item->getParent() ? (Directory*)item->getParent() : (Directory*)root;
                 history.addVisit(currentDirectory);
                 break;
@@ -716,7 +737,6 @@ void MainWindow::on_deleteb_clicked() {
         item->setName(newName);
         currentDirectory->setModified(QDateTime::currentDateTime());
         item->setOriginalPath(calculateFullPath(currentDirectory));
-        item->setIsFavorite(false);
         if (item->getParent()) {
             Directory* p = (Directory*)item->getParent();
             p->detachChild(item);
@@ -875,8 +895,22 @@ void MainWindow::on_renameb_clicked() {
     QString newName = QInputDialog::getText(this, "Rename", "New Name:", QLineEdit::Normal, oldName, &ok);
 
     if (ok && !newName.isEmpty() && newName != oldName) {
-        if (!item->getIsDirectory() && !newName.endsWith(".txt")) {
-            newName += ".txt";
+        if (item->getIsDirectory()) {
+            if (newName.trimmed().isEmpty()) {
+                QMessageBox::warning(this, "Error", "The folder name cannot contain only spaces.");
+                return;
+            }
+            if (newName == "." || newName == "..") {
+                QMessageBox::warning(this, "Error", "The folder name '.' and '..' are not allowed.");
+                return;
+            }
+            if (newName.contains('/') || newName.contains('*') || newName.contains('?') || newName.contains('<') || newName.contains('>') || newName.contains('|')) {
+                QMessageBox::warning(this, "Error", "The folder name contains invalid characters.");
+                return;
+            }
+            if (newName.endsWith(".txt")) newName = newName.left(newName.length() - 4);
+        } else {
+            if (!newName.endsWith(".txt")) newName += ".txt";
         }
 
         bool duplicate = false;
@@ -978,7 +1012,7 @@ void MainWindow::on_actiondelete_triggered() {
     on_deleteb_clicked();
 }
 
-void MainWindow::searchByName(Directory* node, const QString& query, QList<OriginFile*>& results) {
+void MainWindow::searchByName(Directory* node, const QString& query, std::vector<OriginFile*>& results) {
     if (!node) return;
 
     std::vector<OriginFile*> children = node->getChildren();
@@ -987,7 +1021,7 @@ void MainWindow::searchByName(Directory* node, const QString& query, QList<Origi
         if (!child || child->getInRecycleBin()) continue;
 
         if (child->getName().contains(query, Qt::CaseInsensitive)) {
-            results.append(child);
+            results.push_back(child);
         }
 
         if (child->getIsDirectory()) {
@@ -1000,7 +1034,6 @@ void MainWindow::on_enterb_clicked() {
     QString input = ui->pathline->text().trimmed();
     if (input.isEmpty()) return;
 
-    // --- 1. Try exact path navigation (e.g. "/folder/subfolder") ---
     QStringList parts = input.split("/", Qt::SkipEmptyParts);
     Directory* target = (Directory*)root;
     bool exactMatch = true;
@@ -1028,20 +1061,18 @@ void MainWindow::on_enterb_clicked() {
         return;
     }
 
-    // --- 2. Recursive search by name across the whole tree ---
-    // Use only the last segment of the typed path as the search query
     QString query = parts.isEmpty() ? input : parts.last();
 
-    QList<OriginFile*> results;
+    std::vector<OriginFile*> results;
     searchByName((Directory*)root, query, results);
 
-    if (results.isEmpty()) {
+    if (results.empty()) {
         QMessageBox::information(this, "Search", "No files or folders matching \"" + query + "\" were found.");
         return;
     }
 
     if (results.size() == 1) {
-        OriginFile* match = results.first();
+        OriginFile* match = results.front();
         if (match->getIsDirectory()) {
             currentDirectory = (Directory*)match;
             history.addVisit(currentDirectory);
@@ -1055,7 +1086,6 @@ void MainWindow::on_enterb_clicked() {
         return;
     }
 
-    // --- 3. Multiple matches: show a selection dialog ---
     QDialog dialog(this);
     dialog.setWindowTitle("Search Results for \"" + query + "\"");
     dialog.setMinimumSize(380, 280);
@@ -1068,7 +1098,7 @@ void MainWindow::on_enterb_clicked() {
     QListWidget* listWidget = new QListWidget(&dialog);
     listWidget->setIconSize(QSize(20, 20));
 
-    for (int i = 0; i < results.size(); i++) {
+    for (size_t i = 0; i < results.size(); i++) {
         OriginFile* item = results[i];
         QString fullPath = calculateFullPath(item);
         QListWidgetItem* listItem = new QListWidgetItem(listWidget);
