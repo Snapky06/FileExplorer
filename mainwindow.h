@@ -36,6 +36,7 @@ private slots:
     void on_sortb_clicked();
     void on_detailsd_clicked();
     void on_enterb_clicked();
+    void on_search_returnPressed();
     void customMenu(const QPoint &pos);
 
     void on_actionpaste_triggered();
@@ -67,6 +68,7 @@ private:
     void loadSystem();
     OriginFile* cloneNode(OriginFile* node, Directory* parent);
     void searchByName(Directory* node, const QString& query, std::vector<OriginFile*>& results);
+    void sendToRecycleBin(OriginFile* item);
 };
 
 #endif // MAINWINDOW_H

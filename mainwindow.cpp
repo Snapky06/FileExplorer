@@ -25,7 +25,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
     listModel = new QStandardItemModel(this);
     QStringList headers;
-    headers << "";
+    headers << "Name";
     listModel->setHorizontalHeaderLabels(headers);
     ui->listView->setModel(listModel);
 
@@ -98,7 +98,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 
 MainWindow::~MainWindow() {
     saveSystem();
-    if (isCutOperation && clipboard) delete clipboard;
     delete root;
     delete recycleBin;
     delete ui;
@@ -391,7 +390,7 @@ void MainWindow::refreshUI() {
     treeModel->clear();
 
     QStringList headers;
-    headers << "";
+    headers << "Name";
     treeModel->setHorizontalHeaderLabels(headers);
     listModel->setHorizontalHeaderLabels(headers);
 
@@ -679,9 +678,10 @@ void MainWindow::on_deleteb_clicked() {
     if (!item || item == root || item == recycleBin) return;
 
     if (currentDirectory == recycleBin) {
+        // Permanent delete: purge history first, then free memory
         history.purgeSubtree(item);
 
-
+        // If currentDirectory somehow got swept up, reset to root
         OriginFile* temp = currentDirectory;
         bool currentInvalid = false;
         while (temp != nullptr) {
@@ -695,12 +695,14 @@ void MainWindow::on_deleteb_clicked() {
             clipboard = nullptr;
         }
     } else {
-
+        // Move to recycle bin: purge history entries pointing inside this subtree
         history.purgeSubtree(item);
 
+        // If we are currently inside the item being deleted, escape to its parent
         OriginFile* temp = currentDirectory;
         while (temp != nullptr) {
             if (temp == item) {
+                // Navigate to the item's parent (which is currentDirectory or above)
                 currentDirectory = item->getParent() ? (Directory*)item->getParent() : (Directory*)root;
                 history.addVisit(currentDirectory);
                 break;
@@ -763,7 +765,8 @@ void MainWindow::on_copyb_clicked() {
     if (!item || item == recycleBin || item == root) return;
 
     if (isCutOperation && clipboard) {
-        delete clipboard;
+        sendToRecycleBin(clipboard);
+        saveSystem();
     }
 
     clipboard = item;
@@ -782,14 +785,14 @@ void MainWindow::on_cutb_clicked() {
     OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (!item || item == recycleBin || item == root) return;
 
-    if (isCutOperation && clipboard) {
-        delete clipboard;
+    if (isCutOperation && clipboard && clipboard != item) {
+        sendToRecycleBin(clipboard);
+        saveSystem();
+        refreshUI();
     }
 
-    clipboard = cloneNode(item, nullptr);
+    clipboard = item;
     isCutOperation = true;
-
-    on_deleteb_clicked();
 }
 
 void MainWindow::on_pasteb_clicked() {
@@ -837,16 +840,19 @@ void MainWindow::on_pasteb_clicked() {
         }
     }
 
-    OriginFile* clone = cloneNode(clipboard, currentDirectory);
-    if (clone) {
-        clone->setName(newName);
-        currentDirectory->addChild(clone);
-    }
-
     if (isCutOperation) {
-        delete clipboard;
+        if (clipboard->getParent()) ((Directory*)clipboard->getParent())->detachChild(clipboard);
+        clipboard->setName(newName);
+        currentDirectory->addChild(clipboard);
+        clipboard->setParent(currentDirectory);
         clipboard = nullptr;
         isCutOperation = false;
+    } else {
+        OriginFile* clone = cloneNode(clipboard, currentDirectory);
+        if (clone) {
+            clone->setName(newName);
+            currentDirectory->addChild(clone);
+        }
     }
 
     saveSystem();
@@ -1012,6 +1018,44 @@ void MainWindow::on_actiondelete_triggered() {
     on_deleteb_clicked();
 }
 
+
+void MainWindow::sendToRecycleBin(OriginFile* item) {
+    if (!item) return;
+
+    QString baseName = item->getName();
+    QString ext = "";
+    if (!item->getIsDirectory() && baseName.endsWith(".txt")) {
+        ext = ".txt";
+        baseName = baseName.left(baseName.length() - 4);
+    }
+
+    QString newName = item->getName();
+    int counter = 1;
+    bool duplicate = true;
+
+    while (duplicate) {
+        duplicate = false;
+        std::vector<OriginFile*> children = recycleBin->getChildren();
+        for (size_t i = 0; i < children.size(); i++) {
+            if (children[i]->getName() == newName) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (duplicate) {
+            newName = baseName + " (" + QString::number(counter) + ")" + ext;
+            counter++;
+        }
+    }
+
+    item->setName(newName);
+    item->setOriginalPath(calculateFullPath(item->getParent() ? item->getParent() : root));
+    if (item->getParent()) ((Directory*)item->getParent())->detachChild(item);
+    recycleBin->addChild(item);
+    item->setInRecycleBin(true);
+    item->setParent(recycleBin);
+}
+
 void MainWindow::searchByName(Directory* node, const QString& query, std::vector<OriginFile*>& results) {
     if (!node) return;
 
@@ -1036,7 +1080,6 @@ void MainWindow::on_enterb_clicked() {
 
     QStringList parts = input.split("/", Qt::SkipEmptyParts);
     Directory* target = (Directory*)root;
-    bool exactMatch = true;
 
     for (int i = 0; i < parts.size(); i++) {
         bool found = false;
@@ -1049,19 +1092,20 @@ void MainWindow::on_enterb_clicked() {
             }
         }
         if (!found) {
-            exactMatch = false;
-            break;
+            QMessageBox::warning(this, "Navigation", "Path not found.");
+            return;
         }
     }
 
-    if (exactMatch && (target != (Directory*)root || input == "/" || input == "\\")) {
-        currentDirectory = target;
-        history.addVisit(currentDirectory);
-        refreshUI();
-        return;
-    }
+    currentDirectory = target;
+    history.addVisit(currentDirectory);
+    refreshUI();
+}
 
-    QString query = parts.isEmpty() ? input : parts.last();
+void MainWindow::on_search_returnPressed() {
+    QString query = ui->search->text().trimmed();
+    ui->search->clear();
+    if (query.isEmpty()) return;
 
     std::vector<OriginFile*> results;
     searchByName((Directory*)root, query, results);
@@ -1075,13 +1119,10 @@ void MainWindow::on_enterb_clicked() {
         OriginFile* match = results.front();
         if (match->getIsDirectory()) {
             currentDirectory = (Directory*)match;
-            history.addVisit(currentDirectory);
-        } else {
-            if (match->getParent() && match->getParent()->getIsDirectory()) {
-                currentDirectory = (Directory*)match->getParent();
-                history.addVisit(currentDirectory);
-            }
+        } else if (match->getParent() && match->getParent()->getIsDirectory()) {
+            currentDirectory = (Directory*)match->getParent();
         }
+        history.addVisit(currentDirectory);
         refreshUI();
         return;
     }
@@ -1091,7 +1132,6 @@ void MainWindow::on_enterb_clicked() {
     dialog.setMinimumSize(380, 280);
 
     QVBoxLayout* layout = new QVBoxLayout(&dialog);
-
     QLabel* label = new QLabel("Multiple matches found. Select one to navigate to it:", &dialog);
     layout->addWidget(label);
 
@@ -1100,14 +1140,9 @@ void MainWindow::on_enterb_clicked() {
 
     for (size_t i = 0; i < results.size(); i++) {
         OriginFile* item = results[i];
-        QString fullPath = calculateFullPath(item);
         QListWidgetItem* listItem = new QListWidgetItem(listWidget);
-        listItem->setText(item->getName() + "   \u2192  " + fullPath);
-        if (item->getIsDirectory()) {
-            listItem->setIcon(style()->standardIcon(QStyle::SP_DirIcon));
-        } else {
-            listItem->setIcon(style()->standardIcon(QStyle::SP_FileIcon));
-        }
+        listItem->setText(item->getName() + "   \u2192  " + calculateFullPath(item));
+        listItem->setIcon(item->getIsDirectory() ? style()->standardIcon(QStyle::SP_DirIcon) : style()->standardIcon(QStyle::SP_FileIcon));
         listItem->setData(Qt::UserRole, static_cast<qulonglong>(reinterpret_cast<uintptr_t>(item)));
     }
 
@@ -1123,12 +1158,8 @@ void MainWindow::on_enterb_clicked() {
     layout->addLayout(btnLayout);
 
     connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
-    connect(goBtn, &QPushButton::clicked, &dialog, [&]() {
-        if (listWidget->currentItem()) dialog.accept();
-    });
-    connect(listWidget, &QListWidget::itemDoubleClicked, &dialog, [&](QListWidgetItem*) {
-        dialog.accept();
-    });
+    connect(goBtn, &QPushButton::clicked, &dialog, [&]() { if (listWidget->currentItem()) dialog.accept(); });
+    connect(listWidget, &QListWidget::itemDoubleClicked, &dialog, [&](QListWidgetItem*) { dialog.accept(); });
 
     if (dialog.exec() != QDialog::Accepted) return;
 
@@ -1140,12 +1171,9 @@ void MainWindow::on_enterb_clicked() {
 
     if (match->getIsDirectory()) {
         currentDirectory = (Directory*)match;
-        history.addVisit(currentDirectory);
-    } else {
-        if (match->getParent() && match->getParent()->getIsDirectory()) {
-            currentDirectory = (Directory*)match->getParent();
-            history.addVisit(currentDirectory);
-        }
+    } else if (match->getParent() && match->getParent()->getIsDirectory()) {
+        currentDirectory = (Directory*)match->getParent();
     }
+    history.addVisit(currentDirectory);
     refreshUI();
 }
