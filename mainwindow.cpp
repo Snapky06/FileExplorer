@@ -24,9 +24,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->setupUi(this);
 
     listModel = new QStandardItemModel(this);
-    QStringList headers;
-    headers << "Name";
-    listModel->setHorizontalHeaderLabels(headers);
+    listModel->setHorizontalHeaderLabels({"Name"});
     ui->listView->setModel(listModel);
 
     ui->listView->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -34,7 +32,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(ui->listView, &QWidget::customContextMenuRequested, this, &MainWindow::customMenu);
 
     treeModel = new QStandardItemModel(this);
-    treeModel->setHorizontalHeaderLabels(headers);
+    treeModel->setHorizontalHeaderLabels({""});
     ui->treeView->setModel(treeModel);
     ui->treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
@@ -69,6 +67,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->listView->setDefaultDropAction(Qt::MoveAction);
     ui->listView->viewport()->installEventFilter(this);
     ui->parentb->installEventFilter(this);
+    connect(ui->pathline, &QLineEdit::returnPressed, this, &MainWindow::on_enterb_clicked);
+    connect(ui->enterb, &QPushButton::clicked, this, &MainWindow::on_search_returnPressed);
 
     ui->treeView->setDragEnabled(false);
     ui->treeView->setAcceptDrops(false);
@@ -389,10 +389,8 @@ void MainWindow::refreshUI() {
     listModel->clear();
     treeModel->clear();
 
-    QStringList headers;
-    headers << "Name";
-    treeModel->setHorizontalHeaderLabels(headers);
-    listModel->setHorizontalHeaderLabels(headers);
+    treeModel->setHorizontalHeaderLabels({""});
+    listModel->setHorizontalHeaderLabels({"Name"});
 
     ui->pathline->setText(calculateFullPath(currentDirectory));
 
@@ -1093,6 +1091,7 @@ void MainWindow::on_enterb_clicked() {
         }
         if (!found) {
             QMessageBox::warning(this, "Navigation", "Path not found.");
+            refreshUI();
             return;
         }
     }
@@ -1104,11 +1103,11 @@ void MainWindow::on_enterb_clicked() {
 
 void MainWindow::on_search_returnPressed() {
     QString query = ui->search->text().trimmed();
-    ui->search->clear();
     if (query.isEmpty()) return;
+    ui->search->clear();
 
     std::vector<OriginFile*> results;
-    searchByName((Directory*)root, query, results);
+    searchByName(currentDirectory, query, results);
 
     if (results.empty()) {
         QMessageBox::information(this, "Search", "No files or folders matching \"" + query + "\" were found.");

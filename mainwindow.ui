@@ -19,6 +19,12 @@
      <layout class="QHBoxLayout" name="horizontalLayout">
       <item>
        <widget class="QPushButton" name="parentb">
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
+        </property>
         <property name="acceptDrops">
          <bool>true</bool>
         </property>
@@ -32,6 +38,12 @@
       </item>
       <item>
        <widget class="QPushButton" name="backwardb">
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string/>
         </property>
@@ -42,6 +54,12 @@
       </item>
       <item>
        <widget class="QPushButton" name="forwardb">
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string/>
         </property>
@@ -72,8 +90,8 @@
         </property>
         <property name="font">
          <font>
-          <family>Times New Roman</family>
-          <pointsize>12</pointsize>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
          </font>
         </property>
         <property name="text">
@@ -89,10 +107,22 @@
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>10</pointsize>
+         </font>
+        </property>
        </widget>
       </item>
       <item>
        <widget class="QPushButton" name="enterb">
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string>Enter</string>
         </property>
@@ -116,6 +146,12 @@
       </property>
       <item>
        <widget class="QPushButton" name="createb">
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string/>
         </property>
@@ -126,6 +162,12 @@
       </item>
       <item>
        <widget class="QPushButton" name="copyb">
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string/>
         </property>
@@ -136,6 +178,12 @@
       </item>
       <item>
        <widget class="QPushButton" name="pasteb">
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string/>
         </property>
@@ -151,6 +199,12 @@
           <horstretch>0</horstretch>
           <verstretch>10</verstretch>
          </sizepolicy>
+        </property>
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
         </property>
         <property name="text">
          <string/>
@@ -168,6 +222,12 @@
       </item>
       <item>
        <widget class="QPushButton" name="deleteb">
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string/>
         </property>
@@ -178,6 +238,12 @@
       </item>
       <item>
        <widget class="QPushButton" name="renameb">
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string>Rename</string>
         </property>
@@ -185,6 +251,12 @@
       </item>
       <item>
        <widget class="QPushButton" name="sortb">
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string>Sort</string>
         </property>
@@ -192,6 +264,12 @@
       </item>
       <item>
        <widget class="QPushButton" name="detailsd">
+        <property name="font">
+         <font>
+          <family>Century Gothic</family>
+          <pointsize>11</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string/>
         </property>
@@ -214,6 +292,12 @@
        <enum>Qt::Orientation::Horizontal</enum>
       </property>
       <widget class="QTreeView" name="treeView">
+       <property name="font">
+        <font>
+         <family>Century Gothic</family>
+         <pointsize>11</pointsize>
+        </font>
+       </property>
        <property name="dragEnabled">
         <bool>false</bool>
        </property>
@@ -230,6 +314,12 @@
          <horstretch>1</horstretch>
          <verstretch>0</verstretch>
         </sizepolicy>
+       </property>
+       <property name="font">
+        <font>
+         <family>Century Gothic</family>
+         <pointsize>11</pointsize>
+        </font>
        </property>
        <property name="dragEnabled">
         <bool>true</bool>
