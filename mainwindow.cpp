@@ -67,7 +67,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->listView->setDefaultDropAction(Qt::MoveAction);
     ui->listView->viewport()->installEventFilter(this);
     ui->parentb->installEventFilter(this);
-    connect(ui->enterb, &QPushButton::clicked, this, &MainWindow::on_search_returnPressed);
+    connect(ui->pathline, &QLineEdit::returnPressed, this, &MainWindow::on_enterb_clicked);
+    connect(ui->search, &QLineEdit::returnPressed, this, &MainWindow::on_search_returnPressed);
+    connect(ui->enterb, &QPushButton::clicked, this, [this]() {
+        if (ui->search->hasFocus()) on_search_returnPressed();
+        else on_enterb_clicked();
+    });
 
     ui->treeView->setDragEnabled(false);
     ui->treeView->setAcceptDrops(false);
@@ -652,12 +657,12 @@ void MainWindow::on_createb_clicked() {
             } else {
                 File* newFile = new File(name, currentDirectory);
                 currentDirectory->addChild(newFile);
+                currentDirectory->setModified(QDateTime::currentDateTime());
                 saveSystem();
                 refreshUI();
             }
         }
     }
-    currentDirectory->setModified(QDateTime::currentDateTime());
 }
 
 void MainWindow::on_deleteb_clicked() {
@@ -673,9 +678,7 @@ void MainWindow::on_deleteb_clicked() {
     if (!item || item == root || item == recycleBin) return;
 
     if (currentDirectory == recycleBin) {
-
         history.purgeSubtree(item);
-
 
         OriginFile* temp = currentDirectory;
         bool currentInvalid = false;
@@ -695,7 +698,6 @@ void MainWindow::on_deleteb_clicked() {
         OriginFile* temp = currentDirectory;
         while (temp != nullptr) {
             if (temp == item) {
-
                 currentDirectory = item->getParent() ? (Directory*)item->getParent() : (Directory*)root;
                 history.addVisit(currentDirectory);
                 break;
@@ -830,7 +832,11 @@ void MainWindow::on_pasteb_clicked() {
             }
         }
         if (duplicate) {
-            newName = baseName + " (" + QString::number(counter) + ")" + ext;
+            if (isCutOperation) {
+                newName = baseName + " (" + QString::number(counter) + ")" + ext;
+            } else {
+                newName = counter == 1 ? baseName + " copy" + ext : baseName + " copy " + QString::number(counter) + ext;
+            }
             counter++;
         }
     }
@@ -917,7 +923,6 @@ void MainWindow::on_renameb_clicked() {
         bool duplicate = false;
         std::vector<OriginFile*> children = currentDirectory->getChildren();
         for (size_t i = 0; i < children.size(); i++) {
-            if (isCutOperation && children[i] == clipboard) continue;
             if (children[i]->getName() == newName) {
                 duplicate = true;
                 break;
@@ -947,9 +952,9 @@ void MainWindow::on_detailsd_clicked() {
     OriginFile* item = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(index.data(Qt::UserRole + 1).toULongLong()));
     if (!item || item == root || item == recycleBin) return;
 
-    QString tipo = item->getIsDirectory() ? "Carpeta" : "Archivo";
-    QString fechaCreacion = item->getCreated().toString("dd/MM/yyyy hh:mm:ss");
-    QString fechaModificacion = item->getModified().toString("dd/MM/yyyy hh:mm:ss");
+    QString type = item->getIsDirectory() ? "Folder" : "File";
+    QString createdDate = item->getCreated().toString("dd/MM/yyyy hh:mm:ss");
+    QString modifiedDate = item->getModified().toString("dd/MM/yyyy hh:mm:ss");
 
     if (item->getIsDirectory()) {
         long totalSize = 0;
@@ -974,21 +979,21 @@ void MainWindow::on_detailsd_clicked() {
         }
 
         QString info = "Name: " + item->getName() + "\n";
-        info += "Type: " + tipo + "\n";
+        info += "Type: " + type + "\n";
         info += "Files inside: " + QString::number(fileCount) + "\n";
         info += "Total size: " + QString::number(totalSize) + " bytes\n";
-        info += "Created: " + fechaCreacion + "\n";
-        info += "Modified: " + fechaModificacion;
+        info += "Created: " + createdDate + "\n";
+        info += "Modified: " + modifiedDate;
 
         QMessageBox::information(this, "Properties", info);
     } else {
         File* fileItem = (File*)item;
 
         QString info = "Name: " + fileItem->getName() + "\n";
-        info += "Type: " + tipo + "\n";
+        info += "Type: " + type + "\n";
         info += "Size: " + QString::number(fileItem->getSize()) + " bytes\n";
-        info += "Created: " + fechaCreacion + "\n";
-        info += "Modified: " + fechaModificacion;
+        info += "Created: " + createdDate + "\n";
+        info += "Modified: " + modifiedDate;
 
         QMessageBox::information(this, "Properties", info);
     }
@@ -1014,7 +1019,6 @@ void MainWindow::on_actiondelete_triggered() {
     on_deleteb_clicked();
 }
 
-
 void MainWindow::sendToRecycleBin(OriginFile* item) {
     if (!item) return;
 
@@ -1033,7 +1037,6 @@ void MainWindow::sendToRecycleBin(OriginFile* item) {
         duplicate = false;
         std::vector<OriginFile*> children = recycleBin->getChildren();
         for (size_t i = 0; i < children.size(); i++) {
-            if (isCutOperation && children[i] == clipboard) continue;
             if (children[i]->getName() == newName) {
                 duplicate = true;
                 break;
@@ -1059,6 +1062,7 @@ void MainWindow::on_enterb_clicked() {
 
     QStringList parts = input.split("/", Qt::SkipEmptyParts);
     Directory* target = (Directory*)root;
+    bool exactMatch = true;
 
     for (int i = 0; i < parts.size(); i++) {
         bool found = false;
@@ -1071,13 +1075,87 @@ void MainWindow::on_enterb_clicked() {
             }
         }
         if (!found) {
-            QMessageBox::warning(this, "Navigation", "Path not found.");
-            refreshUI();
-            return;
+            exactMatch = false;
+            break;
         }
     }
 
-    currentDirectory = target;
+    if (exactMatch) {
+        currentDirectory = target;
+        history.addVisit(currentDirectory);
+        refreshUI();
+        return;
+    }
+
+    QString name = parts.isEmpty() ? input : parts.last();
+    std::vector<OriginFile*> results;
+    ((Directory*)root)->search(name, results);
+
+    if (results.empty()) {
+        QMessageBox::information(this, "Search", "No files or folders matching \"" + name + "\" were found.");
+        refreshUI();
+        return;
+    }
+
+    if (results.size() == 1) {
+        OriginFile* match = results.front();
+        if (match->getIsDirectory()) {
+            currentDirectory = (Directory*)match;
+        } else if (match->getParent() && match->getParent()->getIsDirectory()) {
+            currentDirectory = (Directory*)match->getParent();
+        }
+        history.addVisit(currentDirectory);
+        refreshUI();
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle("Results for \"" + name + "\"");
+    dialog.setMinimumSize(380, 280);
+
+    QVBoxLayout* layout = new QVBoxLayout(&dialog);
+    QLabel* label = new QLabel("Multiple matches found. Select one:", &dialog);
+    layout->addWidget(label);
+
+    QListWidget* listWidget = new QListWidget(&dialog);
+    listWidget->setIconSize(QSize(20, 20));
+
+    for (size_t i = 0; i < results.size(); i++) {
+        OriginFile* item = results[i];
+        QListWidgetItem* listItem = new QListWidgetItem(listWidget);
+        listItem->setText(item->getName() + "   →  " + calculateFullPath(item));
+        listItem->setIcon(item->getIsDirectory() ? style()->standardIcon(QStyle::SP_DirIcon) : style()->standardIcon(QStyle::SP_FileIcon));
+        listItem->setData(Qt::UserRole, static_cast<qulonglong>(reinterpret_cast<uintptr_t>(item)));
+    }
+
+    layout->addWidget(listWidget);
+
+    QHBoxLayout* btnLayout = new QHBoxLayout();
+    QPushButton* goBtn = new QPushButton("Go", &dialog);
+    goBtn->setDefault(true);
+    QPushButton* cancelBtn = new QPushButton("Cancel", &dialog);
+    btnLayout->addStretch();
+    btnLayout->addWidget(goBtn);
+    btnLayout->addWidget(cancelBtn);
+    layout->addLayout(btnLayout);
+
+    connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
+    connect(goBtn, &QPushButton::clicked, &dialog, [&]() { if (listWidget->currentItem()) dialog.accept(); });
+    connect(listWidget, &QListWidget::itemDoubleClicked, &dialog, [&](QListWidgetItem*) { dialog.accept(); });
+
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    QListWidgetItem* selected = listWidget->currentItem();
+    if (!selected) return;
+
+    OriginFile* match = reinterpret_cast<OriginFile*>(static_cast<uintptr_t>(selected->data(Qt::UserRole).toULongLong()));
+    if (!match) return;
+
+    if (match->getIsDirectory()) {
+        currentDirectory = (Directory*)match;
+    } else if (match->getParent() && match->getParent()->getIsDirectory()) {
+        currentDirectory = (Directory*)match->getParent();
+    }
     history.addVisit(currentDirectory);
     refreshUI();
 }
@@ -1121,7 +1199,7 @@ void MainWindow::on_search_returnPressed() {
     for (size_t i = 0; i < results.size(); i++) {
         OriginFile* item = results[i];
         QListWidgetItem* listItem = new QListWidgetItem(listWidget);
-        listItem->setText(item->getName() + "   \u2192  " + calculateFullPath(item));
+        listItem->setText(item->getName() + "   →  " + calculateFullPath(item));
         listItem->setIcon(item->getIsDirectory() ? style()->standardIcon(QStyle::SP_DirIcon) : style()->standardIcon(QStyle::SP_FileIcon));
         listItem->setData(Qt::UserRole, static_cast<qulonglong>(reinterpret_cast<uintptr_t>(item)));
     }

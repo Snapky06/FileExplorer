@@ -44,4 +44,4 @@ public:
     virtual void read(QDataStream &in);
 };
 
-#endif // ORIGIN_FILE
+#endif // ORIGINFILE_H

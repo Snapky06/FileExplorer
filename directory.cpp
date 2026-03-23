@@ -53,7 +53,6 @@ std::vector<OriginFile*> Directory::getChildren() {
     return children;
 }
 
-
 void Directory::search(const QString& name, std::vector<OriginFile*>& results) {
     for (int i = 0; i < (int)children.size(); i++) {
         OriginFile* child = children[i];
@@ -94,11 +93,11 @@ void Directory::read(QDataStream &in) {
     in >> count;
 
     for (int i = 0; i < count; i++) {
-        bool isChildDirectory;
-        in >> isChildDirectory;
+        bool isDir;
+        in >> isDir;
 
         OriginFile* child;
-        if (isChildDirectory) {
+        if (isDir) {
             child = new Directory("", this);
         } else {
             child = new File("", this);

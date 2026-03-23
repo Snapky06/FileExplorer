@@ -20,12 +20,12 @@ void NavigationHistory::addVisit(OriginFile* dir) {
         return;
     }
 
-    HistoryNode* newNode = new HistoryNode(dir);
     if (head == nullptr) {
+        HistoryNode* newNode = new HistoryNode(dir);
         head = newNode;
         tail = newNode;
         current = newNode;
-    } else {
+    } else if (current != nullptr) {
         HistoryNode* toDelete = current->next;
         while (toDelete != nullptr) {
             HistoryNode* nextToDelete = toDelete->next;
@@ -33,6 +33,7 @@ void NavigationHistory::addVisit(OriginFile* dir) {
             toDelete = nextToDelete;
         }
 
+        HistoryNode* newNode = new HistoryNode(dir);
         current->next = newNode;
         newNode->prev = current;
         current = newNode;
@@ -64,14 +65,12 @@ bool NavigationHistory::canGoForward() {
     return (current != nullptr && current->next != nullptr);
 }
 
-
 void NavigationHistory::purgeSubtree(OriginFile* subtreeRoot) {
     if (!subtreeRoot) return;
 
     HistoryNode* node = head;
     while (node != nullptr) {
         HistoryNode* next = node->next;
-
 
         bool shouldRemove = false;
         OriginFile* temp = node->directory;
