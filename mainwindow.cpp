@@ -67,7 +67,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->listView->setDefaultDropAction(Qt::MoveAction);
     ui->listView->viewport()->installEventFilter(this);
     ui->parentb->installEventFilter(this);
-    connect(ui->pathline, &QLineEdit::returnPressed, this, &MainWindow::on_enterb_clicked);
     connect(ui->enterb, &QPushButton::clicked, this, &MainWindow::on_search_returnPressed);
 
     ui->treeView->setDragEnabled(false);
@@ -430,10 +429,8 @@ void MainWindow::refreshUI() {
                 }
             }
 
-            if (item->getIsDirectory()) {
-                QFont font = listItem->font();
-                font.setBold(true);
-                listItem->setFont(font);
+            if (isCutOperation && clipboard == item) {
+                listItem->setForeground(QColor(160, 160, 160));
             }
             listModel->appendRow(listItem);
         }
@@ -791,6 +788,7 @@ void MainWindow::on_cutb_clicked() {
 
     clipboard = item;
     isCutOperation = true;
+    refreshUI();
 }
 
 void MainWindow::on_pasteb_clicked() {
@@ -827,6 +825,7 @@ void MainWindow::on_pasteb_clicked() {
         duplicate = false;
         std::vector<OriginFile*> children = currentDirectory->getChildren();
         for (size_t i = 0; i < children.size(); i++) {
+            if (isCutOperation && children[i] == clipboard) continue;
             if (children[i]->getName() == newName) {
                 duplicate = true;
                 break;
@@ -920,6 +919,7 @@ void MainWindow::on_renameb_clicked() {
         bool duplicate = false;
         std::vector<OriginFile*> children = currentDirectory->getChildren();
         for (size_t i = 0; i < children.size(); i++) {
+            if (isCutOperation && children[i] == clipboard) continue;
             if (children[i]->getName() == newName) {
                 duplicate = true;
                 break;
@@ -1035,6 +1035,7 @@ void MainWindow::sendToRecycleBin(OriginFile* item) {
         duplicate = false;
         std::vector<OriginFile*> children = recycleBin->getChildren();
         for (size_t i = 0; i < children.size(); i++) {
+            if (isCutOperation && children[i] == clipboard) continue;
             if (children[i]->getName() == newName) {
                 duplicate = true;
                 break;
